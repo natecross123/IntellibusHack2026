@@ -19,7 +19,9 @@ app.add_middleware(
 app.include_router(breach.router, prefix="/api/breach", tags=["Breach Check"])
 app.include_router(scanner.router, prefix="/api/scan", tags=["Link Scanner"])
 app.include_router(analysis.router, prefix="/api/analyze", tags=["Email Analysis"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(user.router, prefix="/api/user", tags=["User"])
 
 @app.get("/")
 def root():
-    return {"status": "BreachBuddy API is running"}
+    return {"status": "API is running"}

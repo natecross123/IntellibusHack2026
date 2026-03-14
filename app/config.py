@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     virustotal_api_key: Optional[str] = None
 
     groq_api_key: Optional[str] = None
+    
+    supabase_url: Optional[str] = None
+    
+    supabase_key: Optional[str] = None
 
     class Config:
         env_file = ".env"

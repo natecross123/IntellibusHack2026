@@ -23,9 +23,9 @@ class BreachResponse(BaseModel):
     breach_count: int
     breaches: List[BreachEntry]
     risk_score: int           # 0-100
-    risk_label: str           # "Low" / "Medium" / "High" / "Critical"
+    risk_label: str           
     recovery_plan: List[RecoveryStep]
-    summary: str              # Plain English summary from Gemini
+    summary: str              # Plain English summary from groq
 
 
 # ─── Link Scanner ─────────────────────────────────────────────────────────────
@@ -38,14 +38,14 @@ class VirusTotalResult(BaseModel):
     malicious_count: int
     suspicious_count: int
     clean_count: int
-    engine_highlights: List[str]   # Top flagging engines
+    engine_highlights: List[str]   
 
 class LinkScanResponse(BaseModel):
     url: str
     is_safe: bool
     risk_score: int                # 0-100
     risk_label: str
-    google_safe_browsing_flags: List[str]  # e.g. ["MALWARE", "SOCIAL_ENGINEERING"]
+    google_safe_browsing_flags: List[str]  
     virustotal: Optional[VirusTotalResult]
     verdict: str                   # Plain English e.g. "This URL is flagged by 12 engines as phishing"
     recommendation: str
@@ -54,18 +54,18 @@ class LinkScanResponse(BaseModel):
 # ─── Email / Text Analysis ───────────────────────────────────────────────────
 
 class EmailAnalysisRequest(BaseModel):
-    content: str               # Raw email text or message body
+    content: str            
     sender: Optional[str] = None
     subject: Optional[str] = None
 
 class RedFlag(BaseModel):
-    flag: str                  # e.g. "Urgency language detected"
-    explanation: str           # Why this is suspicious
+    flag: str                  
+    explanation: str           
 
 class EmailAnalysisResponse(BaseModel):
     risk_score: int            # 0-100
     risk_label: str
-    scam_type: Optional[str]   # e.g. "Phishing", "Prize Scam", "CEO Fraud"
+    scam_type: Optional[str]   
     red_flags: List[RedFlag]
     links_found: List[str]     # URLs extracted from the email body
     verdict: str               # One-sentence plain English verdict
@@ -76,4 +76,4 @@ class EmailAnalysisResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    services: Dict[str, str]   # e.g. {"hibp": "ok", "virustotal": "ok"}
+    services: Dict[str, str]  
