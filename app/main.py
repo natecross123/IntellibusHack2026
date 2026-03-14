@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import breach, scanner, analysis
+from app.routers import breach, scanner, analysis, auth, user
 
 app = FastAPI(
     title="BreachBuddy API",
