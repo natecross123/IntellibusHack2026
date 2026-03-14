@@ -73,3 +73,5 @@ client/build/
 .DS_Store
 Thumbs.db
 desktop.ini
+app/myenv/
+myenv/
