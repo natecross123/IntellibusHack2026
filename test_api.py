@@ -20,7 +20,6 @@ async def test_breach_check_invalid_format():
     """Should return 200 even with a valid email (may be empty breaches without real API key)"""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/api/breach/check", json={"email": "test@example.com"})
-    # Without real API key this will error at HIBP, but the endpoint exists
     assert response.status_code in (200, 502)
 
 
