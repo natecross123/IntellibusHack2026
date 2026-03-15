@@ -21,8 +21,8 @@ def is_origin_allowed(origin: str) -> bool:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex="https://intellibus-hack2026-.*\.vercel\.app|https://cybershield.*\.vercel\.app|http://localhost:(8080|5173|3000)",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
