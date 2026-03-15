@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     sightengine_api_user: Optional[str] = None
     
     sightengine_api_secret: Optional[str] = None
+    # SMTP settings
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = "" 
+    smtp_from: str = ""
+    smtp_secure: bool = False
 
     class Config:
         env_file = ".env"
