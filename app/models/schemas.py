@@ -80,6 +80,7 @@ class MediaScanResponse(BaseModel):
     risk_label: str
     verdict: str
     recommendation: str
+    description: Optional[str] = None  # ← ADD THIS LINE
     ai_generated_score: Optional[float] = None
     deepfake_score: Optional[float] = None
     ai_voice_score: Optional[float] = None

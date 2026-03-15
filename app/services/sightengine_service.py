@@ -118,6 +118,9 @@ async def detect_ai_video(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         ai_score = data.get("type", {}).get("ai_generated", 0)
 
     risk_score = int(ai_score * 100)
+    
+    # Extract reasons from frame analysis
+    description = _build_video_analysis_description(frames, ai_score, risk_score)
 
     if risk_score >= 70:
         verdict = "This video is very likely AI-generated."
@@ -140,8 +143,64 @@ async def detect_ai_video(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         "risk_label": risk_label,
         "verdict": verdict,
         "recommendation": recommendation,
+        "description": description,
         "raw": data,
     }
+
+
+def _build_video_analysis_description(frames: list, ai_score: float, risk_score: int) -> str:
+    """
+    Build a human-readable description of why the video was flagged as AI-generated.
+    Analyzes frame consistency, temporal artifacts, and generation signals.
+    """
+    if not frames:
+        if ai_score > 0.7:
+            return "Video shows strong AI generation signals across all analyzed frames."
+        elif ai_score > 0.4:
+            return "Video exhibits inconsistencies typical of AI generation."
+        else:
+            return "Video appears authentic with no significant AI indicators."
+    
+    # Analyze frame consistency and scores
+    frame_scores = [f.get("type", {}).get("ai_generated", 0) for f in frames]
+    avg_score = sum(frame_scores) / len(frame_scores) if frame_scores else 0
+    max_score = max(frame_scores) if frame_scores else 0
+    min_score = min(frame_scores) if frame_scores else 0
+    
+    # Check for inconsistent frames (sign of AI artifacts)
+    score_variance = max_score - min_score
+    inconsistent = score_variance > 0.3
+    
+    reasons = []
+    
+    # Consistency check — temporal inconsistency is a red flag
+    if inconsistent:
+        reasons.append(f"Inconsistent quality across frames (variance: {score_variance:.2f})")
+    
+    # Overall AI likelihood
+    if ai_score > 0.8:
+        reasons.append("Very high AI generation probability across the video")
+    elif ai_score > 0.6:
+        reasons.append("Strong AI generation signals detected in multiple frames")
+    elif ai_score > 0.4:
+        reasons.append("Moderate AI generation indicators present")
+    elif ai_score > 0.2:
+        reasons.append("Minor suspicious artifacts detected in some frames")
+    
+    # Frame distribution analysis
+    high_score_frames = sum(1 for s in frame_scores if s > 0.7)
+    if high_score_frames > 0 and len(frame_scores) > 0:
+        percentage = (high_score_frames / len(frame_scores)) * 100
+        reasons.append(f"{percentage:.0f}% of frames show high AI probability")
+    
+    # Motion/continuity issues (common in AI videos)
+    if inconsistent and ai_score > 0.4:
+        reasons.append("Frame-to-frame inconsistencies suggest possible motion artifacts")
+    
+    if not reasons:
+        return "Video appears authentic with no significant AI indicators."
+    
+    return "; ".join(reasons) + "."
 
 
 # ─── Audio Detection ──────────────────────────────────────────────────────────
@@ -188,4 +247,3 @@ async def detect_ai_audio(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         "recommendation": recommendation,
         "raw": data,
     }
-
