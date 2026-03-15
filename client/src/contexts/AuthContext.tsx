@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface UserProfile {
   id: string;
@@ -9,6 +9,8 @@ interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
+  accessToken: string | null;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,12 +26,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Auth disabled - immediately set loading to false
     setLoading(false);
   }, []);
 
+  const signOut = () => {
+    // No-op in anonymous mode
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, accessToken: null, signOut }}>
       {children}
     </AuthContext.Provider>
   );
