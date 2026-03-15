@@ -17,6 +17,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string }>;
   signOut: () => void;
   resetPassword: (email: string) => Promise<{ error?: string }>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -240,8 +241,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: "Password reset is not configured yet." };
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const response = await fetch(apiUrl("/api/auth/login/google"), {
+        method: "GET",
+      });
+      const payload = await parseJsonSafe(response);
+      if (!response.ok) {
+        return { error: (payload?.detail as string) ?? `Google sign-in failed (${response.status})` };
+      }
+      // Assuming the backend returns a URL to redirect to
+      const url = payload.url as string;
+      if (url) {
+        window.location.href = url;
+      }
+      return {};
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Google sign-in failed" };
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signUp, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signUp, signOut, resetPassword, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

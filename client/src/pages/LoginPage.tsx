@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithEmail } = useAuth();
+  const { signInWithGoogle, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error: emailError } = await signInWithEmail(email, password);
+    const { error: emailError } = await signIn(email, password);
     if (emailError) {
       setError(emailError);
     }
