@@ -153,9 +153,33 @@ const BreachCheck: React.FC = () => {
   const [newEmail, setNewEmail] = useState("");
   const [hasAccounts] = useState(true); // toggle to false to show empty state
 
-  const totalBreaches = mockAccounts.reduce((sum, a) => sum + a.breaches, 0);
-  const avgScore = Math.round(mockAccounts.reduce((sum, a) => sum + a.score, 0) / mockAccounts.length);
-  const totalExposure = exposureData.reduce((s, d) => s + d.value, 0);
+  const activeData = lookupResult ? [lookupResult] : mockAccounts;
+  const totalBreaches = activeData.reduce((sum, a) => sum + a.breaches, 0);
+  const avgScore = lookupResult 
+    ? lookupResult.score 
+    : Math.round(mockAccounts.reduce((sum, a) => sum + a.score, 0) / mockAccounts.length);
+
+  const exposureMap = new Map<string, number>();
+  activeData.forEach((account) => {
+    account.exposureData.forEach((type) => {
+      exposureMap.set(type, (exposureMap.get(type) || 0) + 1);
+    });
+  });
+  const exposureDataDynamic = exposureData.map((d) => ({
+    ...d,
+    value: exposureMap.get(d.name) || 0,
+  }));
+  const totalExposure = exposureDataDynamic.reduce((s, d) => s + d.value, 0);
+
+  const emailRisk = lookupResult ? Math.round((lookupResult.exposedData.filter(d => d === "Email").length / lookupResult.exposedData.length) * 100) : 64;
+  const passwordRisk = lookupResult ? Math.round((lookupResult.exposedData.filter(d => d === "Password").length / lookupResult.exposedData.length) * 100) : 42;
+
+  const dynamicStatCards = [
+    { label: "Total Threats", value: totalBreaches.toString(), icon: Shield, color: "cyber-red" },
+    { label: "Email Risk", value: `${emailRisk}%`, icon: Mail, color: "cyber-light-blue" },
+    { label: "Password Risk", value: `${passwordRisk}%`, icon: Key, color: "cyber-yellow" },
+    { label: "Data Leaks", value: String(lookupResult?.breaches || mockAccounts.length), icon: Database, color: "cyber-teal" },
+  ]
 
   const handleLookup = async () => {
   if (!lookupEmail.trim()) return;
