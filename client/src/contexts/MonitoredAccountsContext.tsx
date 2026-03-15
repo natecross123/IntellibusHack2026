@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { apiUrl } from "@/lib/apiBase";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 interface BreachRow {
   source: string;
@@ -116,34 +115,24 @@ const fetchLookup = async (email: string): Promise<LookupResult> => {
   return toLookupResult(payload);
 };
 
+// Use JSON headers only — no auth token needed since auth is disabled
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, accessToken } = useAuth();
   const [accounts, setAccounts] = useState<MonitoredAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const authHeaders = useMemo(() => {
-    if (!accessToken) return null;
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    };
-  }, [accessToken]);
-
   const refreshAccounts = useCallback(async () => {
-    if (!user || !authHeaders) {
-      setAccounts([]);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const response = await fetch(apiUrl("/api/user/monitored-accounts"), {
         method: "GET",
-        headers: authHeaders,
+        headers: JSON_HEADERS,
       });
 
       if (!response.ok) {
-        throw new Error(`Unable to load monitored accounts (${response.status})`);
+        // Non-fatal — just show empty list
+        setAccounts([]);
+        return;
       }
 
       const payload = (await response.json()) as MonitoredAccountApiResponse[];
@@ -153,7 +142,7 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     } finally {
       setIsLoading(false);
     }
-  }, [user, authHeaders]);
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -170,10 +159,6 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
       return { ok: false, error: "Please provide an email to monitor." };
     }
 
-    if (!authHeaders) {
-      return { ok: false, error: "You must be logged in to monitor accounts." };
-    }
-
     if (accounts.some((a) => a.email.toLowerCase() === normalizedEmail)) {
       return { ok: false, error: "That account is already being monitored." };
     }
@@ -181,7 +166,7 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     try {
       const response = await fetch(apiUrl("/api/user/monitored-accounts"), {
         method: "POST",
-        headers: authHeaders,
+        headers: JSON_HEADERS,
         body: JSON.stringify({ email: normalizedEmail }),
       });
 
@@ -197,19 +182,17 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     } catch {
       return { ok: false, error: "Unable to monitor account." };
     }
-  }, [accounts, authHeaders]);
+  }, [accounts]);
 
   const removeMonitoredAccount = useCallback((email: string) => {
     const normalizedEmail = email.trim().toLowerCase();
     setAccounts((prev) => prev.filter((a) => a.email.toLowerCase() !== normalizedEmail));
 
-    if (!authHeaders) return;
-
     void fetch(apiUrl(`/api/user/monitored-accounts/${encodeURIComponent(normalizedEmail)}`), {
       method: "DELETE",
-      headers: authHeaders,
+      headers: JSON_HEADERS,
     });
-  }, [authHeaders]);
+  }, []);
 
   const value = useMemo(
     () => ({ accounts, isLoading, lookupAccount, addMonitoredAccount, removeMonitoredAccount }),
