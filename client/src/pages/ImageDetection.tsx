@@ -8,57 +8,60 @@ import RiskGauge from "@/components/RiskGauge";
 import UrlInput from "@/components/UrlInput";
 import { useIsMobile } from "@/hooks/use-mobile";
 import MobileImageDetection from "@/pages/mobile/MobileImageDetection";
-
-interface DetectionResult {
-  score: number;
-  verdict: string;
-  stats: { label: string; value: number; color: string }[];
-  annotations: { label: string; x: number; y: number }[];
-}
-
-const mockResult: DetectionResult = {
-  score: 35,
-  verdict: "65% Likely AI-Generated",
-  stats: [
-    { label: "Face Consistency", value: 42, color: "bg-score-warning" },
-    { label: "Lighting Analysis", value: 78, color: "bg-score-safe" },
-    { label: "Artifact Detection", value: 28, color: "bg-score-danger" },
-    { label: "Texture Elasticity", value: 55, color: "bg-score-warning" },
-    { label: "Edge Coherence", value: 33, color: "bg-score-danger" },
-  ],
-  annotations: [
-    { label: "Extra finger detected", x: 25, y: 60 },
-    { label: "Inconsistent shadow direction", x: 65, y: 30 },
-    { label: "Blurred ear detail", x: 80, y: 20 },
-    { label: "Texture repetition artifact", x: 40, y: 75 },
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
+import { MediaScanResponse, scanImageFile, scanImageUrl } from "@/lib/securityApi";
 
 const ImageDetection: React.FC = () => {
   const isMobile = useIsMobile();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<DetectionResult | null>(null);
+  const [result, setResult] = useState<MediaScanResponse | null>(null);
   const [scannedUrl, setScannedUrl] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) { setFile(f); setPreview(URL.createObjectURL(f)); setResult(null); setScannedUrl(null); }
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!file) return;
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2500);
+
+    try {
+      const response = await scanImageFile(file);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Image scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan image.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
-  const handleUrlScan = (url: string) => {
+  const handleUrlScan = async (url: string) => {
     setScannedUrl(url);
     setFile(null);
     setPreview(null);
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2500);
+
+    try {
+      const response = await scanImageUrl(url);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Image URL scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan image URL.",
+        variant: "destructive",
+      });
+      setScannedUrl(null);
+    } finally {
+      setScanning(false);
+    }
   };
 
   if (isMobile) return <MobileImageDetection />;
@@ -147,16 +150,10 @@ const ImageDetection: React.FC = () => {
                         <div className="absolute left-0 right-0 h-1 animate-scan-line bg-primary/60" />
                       </div>
                     )}
-                    {result && result.annotations.map((a, i) => (
-                      <div key={i} className="absolute flex items-center gap-1" style={{ left: `${a.x}%`, top: `${a.y}%`, transform: "translate(-50%, -50%)" }}>
-                        <div className="h-5 w-5 rounded-full border-2 border-score-danger bg-score-danger/20 animate-pulse-glow" />
-                        <span className="whitespace-nowrap rounded bg-card/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{a.label}</span>
-                      </div>
-                    ))}
                   </div>
                   <div className="flex justify-center gap-3">
                     <Button variant="outline" onClick={() => { setFile(null); setPreview(null); setResult(null); setScannedUrl(null); }}>Clear</Button>
-                    <Button onClick={handleScan} disabled={scanning}>
+                    <Button onClick={() => void handleScan()} disabled={scanning}>
                       {scanning ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <><ImageIcon className="mr-2 h-4 w-4" /> Analyze Image</>}
                     </Button>
                   </div>
@@ -181,18 +178,17 @@ const ImageDetection: React.FC = () => {
             {result && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 md:grid-cols-2">
                 <Card><CardContent className="flex flex-col items-center py-8">
-                  <RiskGauge score={result.score} size={180} label="Authenticity" />
-                  <p className="mt-2 font-display text-lg font-bold text-score-danger">{result.verdict}</p>
+                  <RiskGauge score={result.risk_score} size={180} label="Authenticity" />
+                  <p className="mt-2 font-display text-lg font-bold text-score-danger">{result.risk_label}</p>
+                  <p className="mt-2 max-w-xl text-center text-sm text-muted-foreground">{result.verdict}</p>
                   {scannedUrl && <p className="mt-1 text-xs text-muted-foreground truncate max-w-[250px]">Source: {scannedUrl}</p>}
                 </CardContent></Card>
-                <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Analysis Breakdown</CardTitle></CardHeader>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Recommendation</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
-                    {result.stats.map((s) => (
-                      <div key={s.label}>
-                        <div className="mb-1 flex justify-between text-xs"><span className="text-foreground">{s.label}</span><span className="text-muted-foreground">{s.value}%</span></div>
-                        <div className="h-2 w-full rounded-full bg-muted"><div className={`h-2 rounded-full ${s.color} transition-all duration-1000`} style={{ width: `${s.value}%` }} /></div>
-                      </div>
-                    ))}
+                    <p className="text-sm text-foreground">{result.recommendation}</p>
+                    {typeof result.ai_generated_score === "number" && (
+                      <p className="text-xs text-muted-foreground">AI-generated confidence: {Math.round(result.ai_generated_score * 100)}%</p>
+                    )}
                   </CardContent></Card>
               </motion.div>
             )}

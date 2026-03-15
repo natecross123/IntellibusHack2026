@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MobileSettings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 pb-24">
@@ -21,13 +23,13 @@ const MobileSettings: React.FC = () => {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Full Name</Label>
-            <Input defaultValue="John Doe" />
+            <Input value={user?.fullName ?? ""} readOnly />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Email</Label>
-            <Input defaultValue="john.doe@gmail.com" />
+            <Input value={user?.email ?? ""} readOnly />
           </div>
-          <Button size="sm" className="w-full">Save Changes</Button>
+          <p className="text-xs text-muted-foreground">Profile details are loaded from your authenticated account.</p>
         </div>
       </div>
 
@@ -48,14 +50,7 @@ const MobileSettings: React.FC = () => {
         <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           <Bell className="h-3.5 w-3.5" /> Notifications
         </h2>
-        <div className="space-y-3">
-          {["Breach alerts", "Scan results", "Weekly reports"].map((n) => (
-            <div key={n} className="flex items-center justify-between">
-              <span className="text-sm text-foreground">{n}</span>
-              <Switch defaultChecked />
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-muted-foreground">Notification preferences are not yet persisted, so no saved settings are shown here.</p>
       </div>
     </motion.div>
   );

@@ -237,8 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = useCallback(async (email: string) => {
     if (!email) return { error: "Email is required" };
-    // Mock: always succeed
-    return {};
+    return { error: "Password reset is not configured yet." };
   }, []);
 
   return (
