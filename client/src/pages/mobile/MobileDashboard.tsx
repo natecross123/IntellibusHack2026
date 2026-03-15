@@ -8,13 +8,8 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-const monitoredAccounts = [
-  { name: "john.doe@gmail.com", score: 88, grade: "A" },
-  { name: "john_doe (Instagram)", score: 72, grade: "B+" },
-  { name: "johndoe@outlook.com", score: 95, grade: "A+" },
-  { name: "john.doe (LinkedIn)", score: 64, grade: "C+" },
-];
+import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
+import { useToast } from "@/hooks/use-toast";
 
 const overallGrade = "A-";
 const overallScore = 80;
@@ -60,16 +55,30 @@ const item = {
 };
 
 const MobileDashboard: React.FC = () => {
-  const [accounts, setAccounts] = useState<string[]>([]);
+  const { accounts, addMonitoredAccount } = useMonitoredAccounts();
+  const { toast } = useToast();
   const [newAccount, setNewAccount] = useState("");
   const hasAccounts = accounts.length > 0;
 
-  const handleAddAccount = () => {
+  const handleAddAccount = async () => {
     const trimmed = newAccount.trim();
-    if (trimmed) {
-      setAccounts((prev) => [...prev, trimmed]);
-      setNewAccount("");
+    if (!trimmed) return;
+
+    const result = await addMonitoredAccount(trimmed);
+    if (!result.ok) {
+      toast({
+        title: "Unable to add account",
+        description: result.error ?? "Please try again.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    setNewAccount("");
+    toast({
+      title: "Account monitored",
+      description: `${trimmed} was added to monitored accounts.`,
+    });
   };
 
   return (
@@ -144,7 +153,7 @@ const MobileDashboard: React.FC = () => {
                   </div>
                   <div className="mt-2 flex gap-3">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-white">{monitoredAccounts.length}</p>
+                      <p className="text-lg font-bold text-white">{accounts.length}</p>
                       <p className="text-[10px] text-white/50">Accounts</p>
                     </div>
                     <div className="text-center">

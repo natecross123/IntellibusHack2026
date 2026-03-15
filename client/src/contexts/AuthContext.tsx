@@ -1,5 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 
 interface UserProfile {
   id: string;
@@ -10,6 +10,7 @@ interface UserProfile {
 
 interface AuthContextType {
   user: UserProfile | null;
+  accessToken: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string }>;
@@ -19,45 +20,109 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const stored = sessionStorage.getItem("mock_user");
-    return stored ? JSON.parse(stored) : null;
+const CURRENT_USER_STORAGE_KEY = "cybershield_current_user";
+const ACCESS_TOKEN_STORAGE_KEY = "cybershield_access_token";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+const readCurrentProfile = (): UserProfile | null => {
+  const raw = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    return null;
+  }
+};
+
+const readAccessToken = (): string | null => localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+
+interface LoginResponse {
+  access_token: string;
+  user_id: string;
+  email: string;
+}
+
+const loginWithApi = async (email: string, password: string): Promise<LoginResponse> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
   });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.detail ?? "Invalid email or password");
+  }
+
+  return payload as LoginResponse;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<UserProfile | null>(readCurrentProfile);
+  const [accessToken, setAccessToken] = useState<string | null>(readAccessToken);
   const [loading] = useState(false);
 
-  const signIn = useCallback(async (email: string, _password: string) => {
-    // Mock: accept any credentials with basic validation
-    if (!email || !_password) return { error: "Email and password are required" };
-    if (_password.length < 6) return { error: "Password must be at least 6 characters" };
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (!email || !password) return { error: "Email and password are required" };
+    if (password.length < 6) return { error: "Password must be at least 6 characters" };
 
-    const profile: UserProfile = {
-      id: crypto.randomUUID(),
-      email,
-      fullName: email.split("@")[0],
-    };
-    sessionStorage.setItem("mock_user", JSON.stringify(profile));
-    setUser(profile);
-    return {};
+    try {
+      const payload = await loginWithApi(email, password);
+      const profile: UserProfile = {
+        id: payload.user_id,
+        email: payload.email,
+        fullName: payload.email.split("@")[0],
+      };
+
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(profile));
+      localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, payload.access_token);
+      setUser(profile);
+      setAccessToken(payload.access_token);
+      return {};
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Invalid email or password" };
+    }
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
     if (!email || !password || !fullName) return { error: "All fields are required" };
     if (password.length < 6) return { error: "Password must be at least 6 characters" };
 
-    const profile: UserProfile = {
-      id: crypto.randomUUID(),
-      email,
-      fullName,
-    };
-    sessionStorage.setItem("mock_user", JSON.stringify(profile));
-    setUser(profile);
-    return {};
+    try {
+      const registerResponse = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+
+      const registerPayload = await registerResponse.json();
+      if (!registerResponse.ok) {
+        return { error: registerPayload?.detail ?? "Unable to create account" };
+      }
+
+      const payload = await loginWithApi(email, password);
+      const profile: UserProfile = {
+        id: payload.user_id,
+        email: payload.email,
+        fullName: fullName.trim() || payload.email.split("@")[0],
+      };
+
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(profile));
+      localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, payload.access_token);
+      setUser(profile);
+      setAccessToken(payload.access_token);
+      return {};
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Unable to create account" };
+    }
   }, []);
 
   const signOut = useCallback(() => {
-    sessionStorage.removeItem("mock_user");
+    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
     setUser(null);
+    setAccessToken(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -67,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signUp, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

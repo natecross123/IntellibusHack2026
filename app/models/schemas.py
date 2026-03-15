@@ -90,3 +90,26 @@ class MediaScanResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     services: Dict[str, str]  
+
+
+# ─── Monitored Accounts ───────────────────────────────────────────────────────
+
+class MonitoredAccountRequest(BaseModel):
+    email: EmailStr
+
+
+class BreachPreview(BaseModel):
+    source: str
+    date: str
+    records: str
+
+
+class MonitoredAccountResponse(BaseModel):
+    email: str
+    score: int
+    breaches: int
+    risk_label: str
+    exposed_data: List[str]
+    recent_breaches: List[BreachPreview]
+    added_at: str
+    last_checked_at: str

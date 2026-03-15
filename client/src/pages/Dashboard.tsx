@@ -10,13 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import MobileDashboard from "@/pages/mobile/MobileDashboard";
-
-const monitoredAccounts = [
-  { name: "john.doe@gmail.com", score: 88, grade: "A" },
-  { name: "john_doe (Instagram)", score: 72, grade: "B+" },
-  { name: "johndoe@outlook.com", score: 95, grade: "A+" },
-  { name: "john.doe (LinkedIn)", score: 64, grade: "C+" },
-];
+import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
+import { useToast } from "@/hooks/use-toast";
 
 const overallGrade = "A-";
 const overallScore = 80;
@@ -61,18 +56,45 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+const gradeFromScore = (score: number): string => {
+  if (score >= 97) return "A+";
+  if (score >= 93) return "A";
+  if (score >= 90) return "A-";
+  if (score >= 87) return "B+";
+  if (score >= 83) return "B";
+  if (score >= 80) return "B-";
+  if (score >= 77) return "C+";
+  if (score >= 73) return "C";
+  if (score >= 70) return "C-";
+  return "D";
+};
+
 const Dashboard: React.FC = () => {
   const isMobile = useIsMobile();
-  const [accounts, setAccounts] = useState<string[]>([]);
   const [newAccount, setNewAccount] = useState("");
+  const { toast } = useToast();
+  const { accounts, addMonitoredAccount } = useMonitoredAccounts();
   const hasAccounts = accounts.length > 0;
 
-  const handleAddAccount = () => {
+  const handleAddAccount = async () => {
     const trimmed = newAccount.trim();
-    if (trimmed) {
-      setAccounts((prev) => [...prev, trimmed]);
-      setNewAccount("");
+    if (!trimmed) return;
+
+    const result = await addMonitoredAccount(trimmed);
+    if (!result.ok) {
+      toast({
+        title: "Unable to add account",
+        description: result.error ?? "Please try again.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    setNewAccount("");
+    toast({
+      title: "Account monitored",
+      description: `${trimmed} was added to monitored accounts.`,
+    });
   };
 
   if (isMobile) return <MobileDashboard />;
@@ -155,10 +177,10 @@ const Dashboard: React.FC = () => {
                   <div className="glass-inset-panel p-4 sm:p-5">
                     <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-foreground/50">Monitored Accounts</h3>
                     <div className="space-y-2">
-                      {monitoredAccounts.map((account) => (
-                        <div key={account.name} className="flex items-center justify-between rounded-xl bg-muted/55 px-3 py-2.5 sm:px-4 sm:py-3">
-                          <span className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-[15px]">{account.name}</span>
-                          <span className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-xs font-bold text-primary sm:h-8 sm:w-8 sm:text-sm">{account.grade}</span>
+                      {accounts.map((account) => (
+                        <div key={account.email} className="flex items-center justify-between rounded-xl bg-muted/55 px-3 py-2.5 sm:px-4 sm:py-3">
+                          <span className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-[15px]">{account.email}</span>
+                          <span className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-xs font-bold text-primary sm:h-8 sm:w-8 sm:text-sm">{gradeFromScore(account.score)}</span>
                         </div>
                       ))}
                     </div>

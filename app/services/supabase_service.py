@@ -1,4 +1,5 @@
 from supabase import create_client, Client
+from datetime import datetime, timezone
 from app.config import settings
 from typing import Optional
 
@@ -141,5 +142,55 @@ def get_media_history(user_id: str):
         .eq("user_id", user_id)\
         .order("created_at", desc=True)\
         .limit(20)\
+        .execute()
+    return res.data
+
+
+# ─── Monitored Accounts ──────────────────────────────────────────────────────
+
+def upsert_monitored_account(
+    user_id: str,
+    email: str,
+    breach_count: int,
+    risk_score: int,
+    risk_label: str,
+    exposed_data: list,
+    recent_breaches: list,
+):
+    supabase = get_supabase()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    res = supabase.table("monitored_accounts").upsert(
+        {
+            "user_id": user_id,
+            "email": email,
+            "breach_count": breach_count,
+            "risk_score": risk_score,
+            "risk_label": risk_label,
+            "exposed_data": exposed_data,
+            "recent_breaches": recent_breaches,
+            "last_checked_at": now_iso,
+            "updated_at": now_iso,
+        },
+        on_conflict="user_id,email",
+    ).execute()
+    return res.data[0] if res.data else None
+
+
+def get_monitored_accounts(user_id: str):
+    supabase = get_supabase()
+    res = supabase.table("monitored_accounts") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .order("last_checked_at", desc=True) \
+        .execute()
+    return res.data
+
+
+def delete_monitored_account(user_id: str, email: str):
+    supabase = get_supabase()
+    res = supabase.table("monitored_accounts") \
+        .delete() \
+        .eq("user_id", user_id) \
+        .eq("email", email) \
         .execute()
     return res.data

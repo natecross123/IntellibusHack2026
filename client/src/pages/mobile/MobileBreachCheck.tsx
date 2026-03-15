@@ -5,17 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RiskGauge from "@/components/RiskGauge";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-
-const mockLookupResults = [
-  { score: 28, breaches: 6, exposedData: ["Email", "Password", "Phone", "IP Address", "Username"], recentBreaches: [{ source: "SocialApp.io", date: "2025-11-14", records: "2.3M" }, { source: "ShopEasy.com", date: "2025-08-02", records: "890K" }] },
-  { score: 72, breaches: 2, exposedData: ["Email", "Username"], recentBreaches: [{ source: "OldForum.net", date: "2024-03-19", records: "120K" }] },
-  { score: 91, breaches: 1, exposedData: ["Email"], recentBreaches: [{ source: "MinorSite.org", date: "2022-12-01", records: "30K" }] },
-];
-
-const mockAccounts = [
-  { email: "john.doe@gmail.com", score: 35, breaches: 4, exposedData: ["Email", "Password", "Phone", "IP Address"], recentBreaches: [{ source: "SocialApp.io", date: "2025-11-14", records: "2.3M" }, { source: "ShopEasy.com", date: "2025-08-02", records: "890K" }] },
-  { email: "johndoe@outlook.com", score: 82, breaches: 1, exposedData: ["Email"], recentBreaches: [{ source: "OldForum.net", date: "2024-03-19", records: "120K" }] },
-];
+import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
+import { useToast } from "@/hooks/use-toast";
 
 const exposureData = [
   { name: "Email", value: 6 }, { name: "Password", value: 4 }, { name: "Phone", value: 2 },
@@ -39,20 +30,62 @@ interface LookupResult {
 }
 
 const MobileBreachCheck: React.FC = () => {
+  const { toast } = useToast();
+  const { accounts, lookupAccount, addMonitoredAccount, removeMonitoredAccount } = useMonitoredAccounts();
   const [lookupEmail, setLookupEmail] = useState("");
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [newEmail, setNewEmail] = useState("");
-  const [hasAccounts] = useState(true);
+  const hasAccounts = accounts.length > 0;
 
-  const totalBreaches = mockAccounts.reduce((sum, a) => sum + a.breaches, 0);
-  const avgScore = Math.round(mockAccounts.reduce((sum, a) => sum + a.score, 0) / mockAccounts.length);
+  const totalBreaches = accounts.reduce((sum, a) => sum + a.breaches, 0);
+  const avgScore = hasAccounts
+    ? Math.round(accounts.reduce((sum, a) => sum + a.score, 0) / accounts.length)
+    : 0;
   const totalExposure = exposureData.reduce((s, d) => s + d.value, 0);
 
-  const handleLookup = () => {
+  const handleLookup = async () => {
     if (!lookupEmail.trim()) return;
-    setIsChecking(true); setLookupResult(null);
-    setTimeout(() => { setLookupResult(mockLookupResults[Math.floor(Math.random() * mockLookupResults.length)]); setIsChecking(false); }, 1800);
+    setIsChecking(true);
+    setLookupResult(null);
+    try {
+      const result = await lookupAccount(lookupEmail.trim());
+      setLookupResult(result);
+    } catch {
+      toast({
+        title: "Lookup failed",
+        description: "Unable to fetch breach data right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleMonitorAccount = async () => {
+    if (!newEmail.trim()) return;
+
+    setIsMonitoring(true);
+    try {
+      const result = await addMonitoredAccount(newEmail.trim());
+      if (!result.ok) {
+        toast({
+          title: "Unable to monitor account",
+          description: result.error ?? "Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setNewEmail("");
+      toast({
+        title: "Monitoring enabled",
+        description: `${result.account?.email ?? "Account"} is now being monitored.`,
+      });
+    } finally {
+      setIsMonitoring(false);
+    }
   };
 
   const showCentered = !lookupResult && !isChecking && !hasAccounts;
@@ -79,7 +112,9 @@ const MobileBreachCheck: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Input placeholder="Add email to monitor…" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="text-sm" />
-              <Button size="sm" variant="outline" className="shrink-0"><Plus className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={handleMonitorAccount} disabled={isMonitoring || !newEmail.trim()}>
+                {isMonitoring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -153,14 +188,16 @@ const MobileBreachCheck: React.FC = () => {
                 <div className="flex items-center gap-2 px-1">
                   <ShieldAlert className="h-4 w-4 text-muted-foreground" />
                   <h2 className="font-display text-sm font-bold text-foreground">Monitored Accounts</h2>
-                  <span className="ml-auto text-[10px] text-muted-foreground">{mockAccounts.length} accounts · {totalBreaches} breaches</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">{accounts.length} accounts · {totalBreaches} breaches</span>
                 </div>
               </motion.div>
 
               <motion.div variants={item}>
                 <div className="glass-card flex gap-2 rounded-2xl p-3">
                   <Input placeholder="Add email to monitor…" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="border-transparent bg-transparent text-sm" />
-                  <Button size="sm" className="shrink-0"><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>
+                  <Button size="sm" className="shrink-0" onClick={handleMonitorAccount} disabled={isMonitoring || !newEmail.trim()}>
+                    {isMonitoring ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Plus className="mr-1 h-3.5 w-3.5" />} Add
+                  </Button>
                 </div>
               </motion.div>
 
@@ -218,12 +255,19 @@ const MobileBreachCheck: React.FC = () => {
               </div>
 
               {/* Account cards */}
-              {mockAccounts.map((account) => (
+              {accounts.map((account) => (
                 <motion.div key={account.email} variants={item}>
                   <div className="glass-card overflow-hidden rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-display text-sm font-bold text-foreground truncate">{account.email}</h3>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeMonitoredAccount(account.email)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                     <div className="flex flex-col items-center mb-3">
                       <RiskGauge score={account.score} size={110} />

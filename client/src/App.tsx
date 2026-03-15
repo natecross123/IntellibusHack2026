@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { MonitoredAccountsProvider } from "@/contexts/MonitoredAccountsContext";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Auth from "@/pages/Auth";
@@ -12,6 +13,7 @@ import Dashboard from "@/pages/Dashboard";
 import LinkScanner from "@/pages/LinkScanner";
 import ImageDetection from "@/pages/ImageDetection";
 import VideoDetection from "@/pages/VideoDetection";
+import AudioDetection from "@/pages/AudioDetection";
 import EmailAnalysis from "@/pages/EmailAnalysis";
 import BreachCheck from "@/pages/BreachCheck";
 import Settings from "@/pages/Settings";
@@ -29,24 +31,27 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/login" element={<Auth />} />
-              <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
-              <Route path="/link-scanner" element={<ProtectedLayout><LinkScanner /></ProtectedLayout>} />
-              <Route path="/image-detection" element={<ProtectedLayout><ImageDetection /></ProtectedLayout>} />
-              <Route path="/video-detection" element={<ProtectedLayout><VideoDetection /></ProtectedLayout>} />
-              <Route path="/email-analysis" element={<ProtectedLayout><EmailAnalysis /></ProtectedLayout>} />
-              <Route path="/breach-check" element={<ProtectedLayout><BreachCheck /></ProtectedLayout>} />
-              <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <MonitoredAccountsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/login" element={<Auth />} />
+                <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
+                <Route path="/link-scanner" element={<ProtectedLayout><LinkScanner /></ProtectedLayout>} />
+                <Route path="/image-detection" element={<ProtectedLayout><ImageDetection /></ProtectedLayout>} />
+                <Route path="/video-detection" element={<ProtectedLayout><VideoDetection /></ProtectedLayout>} />
+                <Route path="/audio-detection" element={<ProtectedLayout><AudioDetection /></ProtectedLayout>} />
+                <Route path="/email-analysis" element={<ProtectedLayout><EmailAnalysis /></ProtectedLayout>} />
+                <Route path="/breach-check" element={<ProtectedLayout><BreachCheck /></ProtectedLayout>} />
+                <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </MonitoredAccountsProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
