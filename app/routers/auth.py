@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from starlette.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from app.services.email_service import generate_verification_code, code_expiry, send_verification_email
-from app.services.supabase_service import supabase
+from app.services.supabase_service import get_supabase  # Import the function
 import logging
 import os
 from app.middleware.auth import get_current_user
@@ -24,6 +24,7 @@ class VerifyRequest(BaseModel):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(request: AuthRequest):
     try:
+        supabase = get_supabase()  # Get client inside function
         res = supabase.auth.sign_up({
             "email": request.email,
             "password": request.password
@@ -64,6 +65,7 @@ async def register(request: AuthRequest):
 @router.post("/login")
 async def login(request: AuthRequest):
     try:
+        supabase = get_supabase()  # Get client inside function
         res = supabase.auth.sign_in_with_password({
             "email": request.email,
             "password": request.password
@@ -91,6 +93,7 @@ async def login(request: AuthRequest):
 @router.post("/verify")
 async def verify_email(request: VerifyRequest, user=Depends(get_current_user)):
     try:
+        supabase = get_supabase()  # Get client inside function
         res = supabase.table("verification_codes")\
             .select("*")\
             .eq("user_id", str(user.id))\
@@ -122,6 +125,7 @@ async def verify_email(request: VerifyRequest, user=Depends(get_current_user)):
 @router.post("/logout")
 async def logout(user=Depends(get_current_user)):
     try:
+        supabase = get_supabase()  # Get client inside function
         supabase.auth.sign_out()
         return {"message": "Logged out successfully."}
     except Exception as e:
@@ -138,10 +142,10 @@ async def get_me(credentials=Depends(__import__('app.middleware.auth',
         "email": credentials.email,
     }
 
-
 @router.get("/login/google")
 async def google_login():
     try:
+        supabase = get_supabase()  # Get client inside function
         redirect_to = os.getenv("OAUTH_REDIRECT_URL", "http://localhost:8000/api/auth/callback")
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
@@ -151,10 +155,10 @@ async def google_login():
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @router.get("/callback")
 async def oauth_callback(code: str):
     try:
+        supabase = get_supabase()  # Get client inside function
         res = supabase.auth.exchange_code_for_session({"auth_code": code})
         if res.user is None:
             raise HTTPException(status_code=401, detail="OAuth login failed.")
