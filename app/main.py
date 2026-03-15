@@ -8,19 +8,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# For development with many Vercel preview deployments, you have two options:
+
+# OPTION 1: Use wildcard (if you don't need credentials)
+# Note: Can't use allow_credentials=True with this option
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://intellibus-hack2026.vercel.app",
-        "https://intellibus-hack2026.*\.vercel\.app",
-        "http://localhost:8080",
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=False,  # Must be False when using "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(breach.router, prefix="/api/breach", tags=["Breach Check"])
 app.include_router(scanner.router, prefix="/api/scan", tags=["Link Scanner"])
