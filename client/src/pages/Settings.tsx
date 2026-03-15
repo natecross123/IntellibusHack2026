@@ -8,11 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
 import MobileSettings from "@/pages/mobile/MobileSettings";
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   if (isMobile) return <MobileSettings />;
 
@@ -24,10 +26,10 @@ const Settings: React.FC = () => {
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><User className="h-4 w-4" /> Profile</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Full Name</Label><Input defaultValue="John Doe" /></div>
-            <div className="space-y-2"><Label>Email</Label><Input defaultValue="john.doe@gmail.com" /></div>
+            <div className="space-y-2"><Label>Full Name</Label><Input value={user?.fullName ?? ""} readOnly /></div>
+            <div className="space-y-2"><Label>Email</Label><Input value={user?.email ?? ""} readOnly /></div>
           </div>
-          <Button>Save Changes</Button>
+          <p className="text-sm text-muted-foreground">Profile details are loaded from your authenticated account.</p>
         </CardContent>
       </Card>
 
@@ -47,12 +49,7 @@ const Settings: React.FC = () => {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Bell className="h-4 w-4" /> Notifications</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {["Breach alerts", "Scan results", "Weekly security reports"].map((n) => (
-            <div key={n} className="flex items-center justify-between">
-              <span className="text-sm text-foreground">{n}</span>
-              <Switch defaultChecked />
-            </div>
-          ))}
+          <p className="text-sm text-muted-foreground">Notification preferences are not yet persisted, so no saved settings are shown here.</p>
         </CardContent>
       </Card>
     </motion.div>
