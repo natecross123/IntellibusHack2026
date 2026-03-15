@@ -7,8 +7,6 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MonitoredAccountsProvider } from "@/contexts/MonitoredAccountsContext";
 import Layout from "@/components/Layout";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import LinkScanner from "@/pages/LinkScanner";
 import ImageDetection from "@/pages/ImageDetection";
@@ -19,12 +17,6 @@ import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
-
-const ProtectedLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <ProtectedRoute>
-    <Layout>{children}</Layout>
-  </ProtectedRoute>
-);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -37,14 +29,14 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/login" element={<Auth />} />
-                <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
-                <Route path="/link-scanner" element={<ProtectedLayout><LinkScanner /></ProtectedLayout>} />
-                <Route path="/image-detection" element={<ProtectedLayout><ImageDetection /></ProtectedLayout>} />
-                <Route path="/video-detection" element={<ProtectedLayout><VideoDetection /></ProtectedLayout>} />
-                <Route path="/email-analysis" element={<ProtectedLayout><EmailAnalysis /></ProtectedLayout>} />
-                <Route path="/breach-check" element={<ProtectedLayout><BreachCheck /></ProtectedLayout>} />
-                <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+                {/* Removed /login route - no auth needed */}
+                <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+                <Route path="/link-scanner" element={<Layout><LinkScanner /></Layout>} />
+                <Route path="/image-detection" element={<Layout><ImageDetection /></Layout>} />
+                <Route path="/video-detection" element={<Layout><VideoDetection /></Layout>} />
+                <Route path="/email-analysis" element={<Layout><EmailAnalysis /></Layout>} />
+                <Route path="/breach-check" element={<Layout><BreachCheck /></Layout>} />
+                <Route path="/settings" element={<Layout><Settings /></Layout>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
@@ -56,4 +48,3 @@ const App = () => (
 );
 
 export default App;
-
