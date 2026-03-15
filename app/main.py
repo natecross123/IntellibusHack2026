@@ -28,7 +28,7 @@ app.include_router(user.router, prefix="/api/user", tags=["User"])
 app.include_router(media.router, prefix="/api/media", tags=["Media Detection"])
 
 @app.get("/")
-def root():
+async def root():
     return {"status": "API is running"}
 
 origins = [
