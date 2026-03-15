@@ -62,6 +62,30 @@ const VideoDetection: React.FC = () => {
     }
   };
 
+  const getMarkers = (result: MediaScanResponse): string[] => {
+    const markers: string[] = [];
+
+    if (result.indicators && result.indicators.length) {
+      markers.push(...result.indicators.filter(Boolean));
+    }
+
+    const longDesc =
+      result.description?.trim() ||
+      (result.raw && typeof result.raw === "object" && (result.raw.description || result.raw.explanation || result.raw.detail)) ||
+      "";
+
+    if (typeof longDesc === "string" && longDesc.trim()) {
+      markers.push(
+        ...longDesc
+          .split(/\.|;|,|\n/)
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0),
+      );
+    }
+
+    return Array.from(new Set(markers));
+  };
+
   if (isMobile) return <MobileVideoDetection />;
 
   const showCentered = !file && !scanning && !result && !scannedUrl;
@@ -189,6 +213,21 @@ const VideoDetection: React.FC = () => {
                     <p className="text-sm text-foreground">{result.recommendation}</p>
                     {typeof result.deepfake_score === "number" && (
                       <p className="text-xs text-muted-foreground">Deepfake confidence: {Math.round(result.deepfake_score * 100)}%</p>
+                    )}
+                    {getMarkers(result).length > 0 && (
+                      <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs">
+                        <p className="mb-2 font-medium text-secondary">Detected markers</p>
+                        <ul className="list-disc list-inside space-y-1 text-foreground">
+                          {getMarkers(result).slice(0, 8).map((marker, idx) => (
+                            <li key={`marker-${idx}`}>{marker}</li>
+                          ))}
+                        </ul>
+                        {getMarkers(result).length > 8 && (
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            And {getMarkers(result).length - 8} more markers...
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div></CardContent></Card>
               </motion.div>

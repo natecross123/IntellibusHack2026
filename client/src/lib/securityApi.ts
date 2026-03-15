@@ -78,6 +78,9 @@ export interface MediaScanResponse {
   ai_generated_score?: number | null;
   deepfake_score?: number | null;
   ai_voice_score?: number | null;
+  description?: string | null;
+  indicators?: string[] | null;
+  raw?: Record<string, any> | null;
 }
 
 export const scanLink = (url: string): Promise<LinkScanResponse> =>

@@ -43,6 +43,31 @@ const ImageDetection: React.FC = () => {
     }
   };
 
+  const getMarkers = (result: MediaScanResponse): string[] => {
+    const markers: string[] = [];
+
+    if (result.indicators && result.indicators.length) {
+      markers.push(...result.indicators.filter(Boolean));
+    }
+
+    const desc =
+      result.description?.trim() ||
+      (result.raw && typeof result.raw === "object" && (result.raw.description || result.raw.explanation || result.raw.detail)) ||
+      "";
+
+    if (typeof desc === "string" && desc.trim()) {
+      const split = desc
+        .split(/\.|;|,|\n/)
+        .map((piece) => piece.trim())
+        .filter((piece) => piece.length > 0);
+      markers.push(...split);
+    }
+
+    // Avoid duplicates while preserving order
+    const unique = Array.from(new Set(markers));
+    return unique;
+  };
+
   const handleUrlScan = async (url: string) => {
     setScannedUrl(url);
     setFile(null);
@@ -188,6 +213,21 @@ const ImageDetection: React.FC = () => {
                     <p className="text-sm text-foreground">{result.recommendation}</p>
                     {typeof result.ai_generated_score === "number" && (
                       <p className="text-xs text-muted-foreground">AI-generated confidence: {Math.round(result.ai_generated_score * 100)}%</p>
+                    )}
+                    {getMarkers(result).length > 0 && (
+                      <div className="rounded-md border border-border bg-muted p-3 text-xs">
+                        <p className="mb-2 font-medium text-secondary">Detected markers</p>
+                        <ul className="list-disc list-inside space-y-1 text-foreground">
+                          {getMarkers(result).slice(0, 8).map((marker, idx) => (
+                            <li key={`marker-${idx}`}>{marker}</li>
+                          ))}
+                        </ul>
+                        {getMarkers(result).length > 8 && (
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            And {getMarkers(result).length - 8} more markers...
+                          </p>
+                        )}
+                      </div>
                     )}
                   </CardContent></Card>
               </motion.div>
