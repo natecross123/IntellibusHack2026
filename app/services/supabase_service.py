@@ -1,13 +1,27 @@
 from supabase import create_client, Client
 from app.config import settings
+from typing import Optional
 
-supabase: Client = create_client(settings.supabase_url, settings.supabase_key)
+# Don't create client at module level!
+_supabase_client: Optional[Client] = None
 
+def get_supabase() -> Client:
+    """Lazy-load Supabase client"""
+    global _supabase_client
+    if _supabase_client is None:
+        if not settings.supabase_url or not settings.supabase_key:
+            raise ValueError("Supabase credentials not configured")
+        _supabase_client = create_client(
+            settings.supabase_url, 
+            settings.supabase_key
+        )
+    return _supabase_client
 
 # ─── Breach History ───────────────────────────────────────────────────────────
 
 def save_breach_result(user_id: str, email: str, breach_count: int,
                        risk_score: int, result: dict):
+    supabase = get_supabase()  # Get client inside function
     supabase.table("breach_checks").insert({
         "user_id": user_id,
         "email": email,
@@ -18,6 +32,7 @@ def save_breach_result(user_id: str, email: str, breach_count: int,
 
 
 def get_breach_history(user_id: str):
+    supabase = get_supabase()
     res = supabase.table("breach_checks")\
         .select("*")\
         .eq("user_id", user_id)\
@@ -31,6 +46,7 @@ def get_breach_history(user_id: str):
 
 def get_cached_url(url: str):
     try:
+        supabase = get_supabase()
         res = supabase.table("scanned_urls")\
             .select("*")\
             .eq("url", url)\
@@ -43,6 +59,7 @@ def get_cached_url(url: str):
 
 
 def save_cached_url(url: str, risk_score: int, risk_label: str, result: dict):
+    supabase = get_supabase()
     supabase.table("scanned_urls").upsert({
         "url": url,
         "risk_score": risk_score,
@@ -55,6 +72,7 @@ def save_cached_url(url: str, risk_score: int, risk_label: str, result: dict):
 
 def save_analysis_result(user_id: str, subject: str,
                          risk_score: int, result: dict):
+    supabase = get_supabase()
     supabase.table("email_analyses").insert({
         "user_id": user_id,
         "subject": subject,
@@ -64,6 +82,7 @@ def save_analysis_result(user_id: str, subject: str,
 
 
 def get_analysis_history(user_id: str):
+    supabase = get_supabase()
     res = supabase.table("email_analyses")\
         .select("*")\
         .eq("user_id", user_id)\
@@ -76,6 +95,7 @@ def get_analysis_history(user_id: str):
 # ─── Dashboard Summary ────────────────────────────────────────────────────────
 
 def get_dashboard_summary(user_id: str):
+    supabase = get_supabase()
     breaches = supabase.table("breach_checks")\
         .select("risk_score, created_at")\
         .eq("user_id", user_id)\
@@ -98,12 +118,13 @@ def get_dashboard_summary(user_id: str):
         "high_risk_count": len([
             x for x in breaches + analyses if x["risk_score"] >= 70
         ]),
-
-        
     }
+
+
 # ─── media Summary ────────────────────────────────────────────────────────
 def save_media_scan(user_id: str, media_type: str, filename: str,
                     risk_score: int, result: dict):
+    supabase = get_supabase()
     supabase.table("media_scans").insert({
         "user_id": user_id,
         "media_type": media_type,
@@ -114,6 +135,7 @@ def save_media_scan(user_id: str, media_type: str, filename: str,
 
 
 def get_media_history(user_id: str):
+    supabase = get_supabase()
     res = supabase.table("media_scans")\
         .select("*")\
         .eq("user_id", user_id)\
