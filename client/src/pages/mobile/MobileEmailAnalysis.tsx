@@ -6,34 +6,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import RiskGauge from "@/components/RiskGauge";
-
-const mockResult = {
-  score: 22,
-  verdict: "High Phishing Risk",
-  extractedUrls: [
-    { url: "http://secure-login.fakebank.xyz/verify", score: 8, verdict: "Dangerous" },
-    { url: "https://tracking.newsletter.com/open", score: 85, verdict: "Safe" },
-    { url: "http://bit.ly/3xFakeLink", score: 25, verdict: "Suspicious" },
-  ],
-  patterns: [
-    "Sender domain does not match claimed organization",
-    "Urgency language detected",
-    "Mismatched reply-to address",
-    "Suspicious shortened URL detected",
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
+import { EmailAnalysisResponse, analyzeEmail } from "@/lib/securityApi";
 
 const MobileEmailAnalysis: React.FC = () => {
   const [sender, setSender] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<typeof mockResult | null>(null);
+  const [result, setResult] = useState<EmailAnalysisResponse | null>(null);
+  const { toast } = useToast();
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!body) return;
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2000);
+
+    try {
+      const response = await analyzeEmail(body.trim(), sender.trim(), subject.trim());
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Unable to analyze email.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
   const showCentered = !result && !scanning;
@@ -84,19 +83,19 @@ const MobileEmailAnalysis: React.FC = () => {
             {result && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
                 <div className="glass-card flex flex-col items-center rounded-2xl py-6">
-                  <RiskGauge score={result.score} size={150} label="Safety" />
-                  <p className="mt-2 font-display text-base font-bold text-score-danger">{result.verdict}</p>
+                  <RiskGauge score={result.risk_score} size={150} label="Safety" />
+                  <p className="mt-2 font-display text-base font-bold text-score-danger">{result.risk_label}</p>
+                  <p className="mt-2 px-4 text-center text-xs text-muted-foreground">{result.verdict}</p>
                 </div>
 
                 <div className="glass-card rounded-2xl p-4">
                   <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><LinkIcon className="h-3.5 w-3.5 text-cyber-blue" /> URLs Found</h3>
                   <div className="space-y-2">
-                    {result.extractedUrls.map((u, i) => (
+                    {(result.links_found.length > 0 ? result.links_found : ["No URLs detected in this email."]).map((u, i) => (
                       <div key={i} className="flex items-center justify-between rounded-xl bg-muted p-3">
-                        <span className="min-w-0 truncate text-xs text-foreground">{u.url}</span>
+                        <span className="min-w-0 truncate text-xs text-foreground">{u}</span>
                         <div className="ml-2 flex shrink-0 items-center gap-1.5">
-                          <span className="text-[10px] text-muted-foreground">{u.score}</span>
-                          {u.verdict === "Safe" ? <CheckCircle className="h-3.5 w-3.5 text-score-safe" /> : u.verdict === "Suspicious" ? <AlertTriangle className="h-3.5 w-3.5 text-score-warning" /> : <XCircle className="h-3.5 w-3.5 text-score-danger" />}
+                          {result.links_found.length > 0 ? <CheckCircle className="h-3.5 w-3.5 text-cyber-blue" /> : <CheckCircle className="h-3.5 w-3.5 text-score-safe" />}
                         </div>
                       </div>
                     ))}
@@ -106,10 +105,10 @@ const MobileEmailAnalysis: React.FC = () => {
                 <div className="glass-card rounded-2xl p-4">
                   <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5 text-score-danger" /> Patterns</h3>
                   <ul className="space-y-2">
-                    {result.patterns.map((p, i) => (
+                    {(result.red_flags.length > 0 ? result.red_flags : [{ flag: result.scam_type || "No scam pattern detected", explanation: result.recommendation }]).map((p, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-danger" />
-                        <span className="text-foreground">{p}</span>
+                        <span className="text-foreground"><span className="font-medium">{p.flag}:</span> {p.explanation}</span>
                       </li>
                     ))}
                   </ul>

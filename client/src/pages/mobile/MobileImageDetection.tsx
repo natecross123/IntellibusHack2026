@@ -5,43 +5,59 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import RiskGauge from "@/components/RiskGauge";
 import UrlInput from "@/components/UrlInput";
-
-const mockResult = {
-  score: 35,
-  verdict: "65% Likely AI-Generated",
-  stats: [
-    { label: "Face Consistency", value: 42, color: "bg-score-warning" },
-    { label: "Lighting Analysis", value: 78, color: "bg-score-safe" },
-    { label: "Artifact Detection", value: 28, color: "bg-score-danger" },
-    { label: "Texture Elasticity", value: 55, color: "bg-score-warning" },
-    { label: "Edge Coherence", value: 33, color: "bg-score-danger" },
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
+import { MediaScanResponse, scanImageFile, scanImageUrl } from "@/lib/securityApi";
 
 const MobileImageDetection: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<typeof mockResult | null>(null);
+  const [result, setResult] = useState<MediaScanResponse | null>(null);
   const [scannedUrl, setScannedUrl] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) { setFile(f); setPreview(URL.createObjectURL(f)); setResult(null); setScannedUrl(null); }
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!file) return;
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2500);
+
+    try {
+      const response = await scanImageFile(file);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Image scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan image.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
-  const handleUrlScan = (url: string) => {
+  const handleUrlScan = async (url: string) => {
     setScannedUrl(url);
     setFile(null);
     setPreview(null);
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2500);
+
+    try {
+      const response = await scanImageUrl(url);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Image URL scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan image URL.",
+        variant: "destructive",
+      });
+      setScannedUrl(null);
+    } finally {
+      setScanning(false);
+    }
   };
 
   const showCentered = !file && !scanning && !result && !scannedUrl;
@@ -133,24 +149,18 @@ const MobileImageDetection: React.FC = () => {
             {result && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
                 <div className="glass-card flex flex-col items-center rounded-2xl py-6">
-                  <RiskGauge score={result.score} size={140} label="Authenticity" />
-                  <p className="mt-2 font-display text-base font-bold text-score-danger">{result.verdict}</p>
+                  <RiskGauge score={result.risk_score} size={140} label="Authenticity" />
+                  <p className="mt-2 font-display text-base font-bold text-score-danger">{result.risk_label}</p>
+                  <p className="mt-2 px-4 text-center text-xs text-muted-foreground">{result.verdict}</p>
                   {scannedUrl && <p className="mt-1 text-[10px] text-muted-foreground truncate max-w-[200px]">Source: {scannedUrl}</p>}
                 </div>
                 <div className="glass-card rounded-2xl p-4">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Breakdown</h3>
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Recommendation</h3>
                   <div className="space-y-3">
-                    {result.stats.map((s) => (
-                      <div key={s.label}>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-foreground">{s.label}</span>
-                          <span className="text-muted-foreground">{s.value}%</span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-muted">
-                          <div className={`h-2 rounded-full ${s.color} transition-all duration-1000`} style={{ width: `${s.value}%` }} />
-                        </div>
-                      </div>
-                    ))}
+                    <p className="text-sm text-foreground">{result.recommendation}</p>
+                    {typeof result.ai_generated_score === "number" && (
+                      <p className="text-xs text-muted-foreground">AI-generated confidence: {Math.round(result.ai_generated_score * 100)}%</p>
+                    )}
                   </div>
                 </div>
               </motion.div>

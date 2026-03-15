@@ -8,46 +8,59 @@ import RiskGauge from "@/components/RiskGauge";
 import UrlInput from "@/components/UrlInput";
 import { useIsMobile } from "@/hooks/use-mobile";
 import MobileVideoDetection from "@/pages/mobile/MobileVideoDetection";
-
-const mockResult = {
-  score: 42,
-  verdict: "58% Likely Deepfake",
-  timeline: [
-    { time: "0:03", description: "Facial micro-expression inconsistency detected", severity: "high" as const },
-    { time: "0:12", description: "Lip sync deviation — audio/visual mismatch of 120ms", severity: "high" as const },
-    { time: "0:28", description: "Unnatural eye blinking pattern", severity: "medium" as const },
-    { time: "0:45", description: "Background warping near subject's hairline", severity: "low" as const },
-    { time: "1:02", description: "Skin texture anomaly on left cheek", severity: "medium" as const },
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
+import { MediaScanResponse, scanVideoFile, scanVideoUrl } from "@/lib/securityApi";
 
 const VideoDetection: React.FC = () => {
   const isMobile = useIsMobile();
   const [file, setFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<typeof mockResult | null>(null);
+  const [result, setResult] = useState<MediaScanResponse | null>(null);
   const [scannedUrl, setScannedUrl] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) { setFile(f); setResult(null); setScannedUrl(null); }
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!file) return;
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 3000);
+
+    try {
+      const response = await scanVideoFile(file);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Video scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan video.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
-  const handleUrlScan = (url: string) => {
+  const handleUrlScan = async (url: string) => {
     setScannedUrl(url);
     setFile(null);
     setScanning(true);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 3000);
-  };
 
-  const severityColor = (s: string) => s === "high" ? "text-score-danger" : s === "medium" ? "text-score-warning" : "text-score-safe";
-  const severityBg = (s: string) => s === "high" ? "bg-score-danger/10" : s === "medium" ? "bg-score-warning/10" : "bg-score-safe/10";
+    try {
+      const response = await scanVideoUrl(url);
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Video URL scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan video URL.",
+        variant: "destructive",
+      });
+      setScannedUrl(null);
+    } finally {
+      setScanning(false);
+    }
+  };
 
   if (isMobile) return <MobileVideoDetection />;
 
@@ -165,19 +178,18 @@ const VideoDetection: React.FC = () => {
             {result && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <Card><CardContent className="flex flex-col items-center py-8">
-                  <RiskGauge score={result.score} size={200} label="Authenticity" />
-                  <p className="mt-2 font-display text-lg font-bold text-score-danger">{result.verdict}</p>
+                  <RiskGauge score={result.risk_score} size={200} label="Authenticity" />
+                  <p className="mt-2 font-display text-lg font-bold text-score-danger">{result.risk_label}</p>
+                  <p className="mt-2 max-w-xl text-center text-sm text-muted-foreground">{result.verdict}</p>
                   {scannedUrl && <p className="mt-1 text-xs text-muted-foreground truncate max-w-[300px]">Source: {scannedUrl}</p>}
                 </CardContent></Card>
 
-                <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm"><Clock className="h-4 w-4 text-cyber-light-blue" /> Detection Timeline</CardTitle></CardHeader>
+                <Card><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm"><Clock className="h-4 w-4 text-cyber-light-blue" /> Recommendation</CardTitle></CardHeader>
                   <CardContent><div className="space-y-3">
-                    {result.timeline.map((t, i) => (
-                      <div key={i} className={`flex items-start gap-3 rounded-lg p-3 ${severityBg(t.severity)}`}>
-                        <span className={`mt-0.5 font-mono text-sm font-bold ${severityColor(t.severity)}`}>{t.time}</span>
-                        <div><p className="text-sm text-foreground">{t.description}</p><span className={`text-xs font-medium uppercase ${severityColor(t.severity)}`}>{t.severity} severity</span></div>
-                      </div>
-                    ))}
+                    <p className="text-sm text-foreground">{result.recommendation}</p>
+                    {typeof result.deepfake_score === "number" && (
+                      <p className="text-xs text-muted-foreground">Deepfake confidence: {Math.round(result.deepfake_score * 100)}%</p>
+                    )}
                   </div></CardContent></Card>
               </motion.div>
             )}

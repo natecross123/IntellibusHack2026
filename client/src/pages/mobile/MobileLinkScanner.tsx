@@ -4,47 +4,46 @@ import { Link as LinkIconLucide, Search, Shield, AlertTriangle, XCircle, Externa
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import RiskGauge from "@/components/RiskGauge";
-
-interface ScanResult {
-  url: string;
-  overallScore: number;
-  verdict: "Safe" | "Suspicious" | "Dangerous";
-  googleSafeBrowsing: { status: string; score: number };
-  virusTotal: { detected: number; total: number; score: number };
-  flags: string[];
-}
-
-const mockResult: ScanResult = {
-  url: "https://example-phishing.com/login",
-  overallScore: 28,
-  verdict: "Dangerous",
-  googleSafeBrowsing: { status: "Flagged as phishing", score: 15 },
-  virusTotal: { detected: 12, total: 70, score: 41 },
-  flags: [
-    "Domain registered less than 30 days ago",
-    "SSL certificate mismatch",
-    "Known phishing pattern in URL structure",
-    "Redirects to suspicious IP address",
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
+import { LinkScanResponse, scanLink } from "@/lib/securityApi";
 
 const MobileLinkScanner: React.FC = () => {
   const [url, setUrl] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [result, setResult] = useState<LinkScanResponse | null>(null);
+  const { toast } = useToast();
 
-  const handleScan = () => {
+  const handleScan = async () => {
     if (!url) return;
     setScanning(true);
     setResult(null);
-    setTimeout(() => { setScanning(false); setResult(mockResult); }, 2000);
+
+    try {
+      const response = await scanLink(url.trim());
+      setResult(response);
+    } catch (error) {
+      toast({
+        title: "Scan failed",
+        description: error instanceof Error ? error.message : "Unable to scan URL.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
-  const getVerdictColor = (verdict: string) => {
-    if (verdict === "Safe") return "text-score-safe";
-    if (verdict === "Suspicious") return "text-score-warning";
+  const getVerdictColor = (label: string) => {
+    if (label === "Safe") return "text-score-safe";
+    if (label === "Low Risk" || label === "Suspicious") return "text-score-warning";
     return "text-score-danger";
   };
+
+  const warnings = result
+    ? [
+      ...result.google_safe_browsing_flags.map((flag) => `Google Safe Browsing flagged: ${flag}`),
+      ...(result.virustotal?.engine_highlights ?? []).map((engine) => `VirusTotal engine flag: ${engine}`),
+    ]
+    : [];
 
   const showCentered = !scanning && !result;
 
@@ -96,27 +95,28 @@ const MobileLinkScanner: React.FC = () => {
             {result && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
                 <div className="glass-card flex flex-col items-center rounded-2xl py-6">
-                  <RiskGauge score={result.overallScore} size={150} />
-                  <p className={`mt-2 font-display text-xl font-bold ${getVerdictColor(result.verdict)}`}>{result.verdict}</p>
+                  <RiskGauge score={result.risk_score} size={150} />
+                  <p className={`mt-2 font-display text-xl font-bold ${getVerdictColor(result.risk_label)}`}>{result.risk_label}</p>
+                  <p className="mt-2 px-4 text-center text-xs text-muted-foreground">{result.verdict}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ExternalLink className="h-3 w-3" /> {result.url}</p>
                 </div>
 
                 <div className="glass-card rounded-2xl p-4">
                   <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><Shield className="h-3.5 w-3.5 text-cyber-blue" /> Google Safe Browsing</h3>
-                  <p className="text-sm font-bold text-score-danger">{result.googleSafeBrowsing.status}</p>
-                  <p className="text-xs text-muted-foreground">Score: {result.googleSafeBrowsing.score}/100</p>
+                  <p className="text-sm font-bold text-foreground">{result.google_safe_browsing_flags.length > 0 ? `${result.google_safe_browsing_flags.length} flag(s)` : "No matches found"}</p>
+                  <p className="text-xs text-muted-foreground">Threat signals returned by Google Safe Browsing</p>
                 </div>
 
                 <div className="glass-card rounded-2xl p-4">
                   <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><Shield className="h-3.5 w-3.5 text-cyber-light-blue" /> VirusTotal</h3>
-                  <p className="text-sm font-bold text-score-warning">{result.virusTotal.detected}/{result.virusTotal.total} flagged</p>
-                  <p className="text-xs text-muted-foreground">Score: {result.virusTotal.score}/100</p>
+                  <p className="text-sm font-bold text-foreground">{result.virustotal ? `${result.virustotal.malicious_count + result.virustotal.suspicious_count}/${result.virustotal.total_engines} flagged` : "No VirusTotal data"}</p>
+                  <p className="text-xs text-muted-foreground">{result.recommendation}</p>
                 </div>
 
                 <div className="glass-card rounded-2xl p-4">
                   <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5 text-score-danger" /> Flags</h3>
                   <ul className="space-y-2">
-                    {result.flags.map((flag, i) => (
+                    {(warnings.length > 0 ? warnings : [result.recommendation]).map((flag, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-danger" />
                         <span className="text-foreground">{flag}</span>
