@@ -153,9 +153,47 @@ const BreachCheck: React.FC = () => {
   const [newEmail, setNewEmail] = useState("");
   const [hasAccounts] = useState(true); // toggle to false to show empty state
 
-  const totalBreaches = mockAccounts.reduce((sum, a) => sum + a.breaches, 0);
-  const avgScore = Math.round(mockAccounts.reduce((sum, a) => sum + a.score, 0) / mockAccounts.length);
-  const totalExposure = exposureData.reduce((s, d) => s + d.value, 0);
+  // DYNAMIC CALCULATIONS - Update when lookupResult changes
+  // Switch between checked email or default dashboard
+  const currentData = lookupResult ? [lookupResult] : mockAccounts;
+  
+  // Calculate base metrics
+  const totalBreaches = currentData.reduce((sum, a) => sum + a.breaches, 0);
+  const avgScore = lookupResult 
+    ? lookupResult.score 
+    : Math.round(mockAccounts.reduce((sum, a) => sum + a.score, 0) / mockAccounts.length);
+  
+  // Calculate exposure breakdown
+  const exposureMap = new Map<string, number>();
+  currentData.forEach((account) => {
+    account.exposedData.forEach((type) => {
+      exposureMap.set(type, (exposureMap.get(type) || 0) + 1);
+    });
+  });
+  
+  // Build display data
+  const dynamicExposureData = exposureData.map((d) => ({
+    ...d,
+    value: exposureMap.get(d.name) || 0,
+  }));
+  const totalExposure = dynamicExposureData.reduce((s, d) => s + d.value, 0);
+  
+  // Calculate risk percentages
+  const hasExposedData = lookupResult?.exposedData.length && lookupResult.exposedData.length > 0;
+  const emailRisk = hasExposedData 
+    ? Math.round((lookupResult!.exposedData.filter(d => d === "Email").length / lookupResult!.exposedData.length) * 100)
+    : 64;
+  const passwordRisk = hasExposedData
+    ? Math.round((lookupResult!.exposedData.filter(d => d === "Password").length / lookupResult!.exposedData.length) * 100)
+    : 42;
+  
+  // Build dynamic stat cards
+  const dynamicStatCards = [
+    { label: "Total Threats", value: String(totalBreaches), icon: Shield, color: "cyber-red" },
+    { label: "Email Risk", value: `${emailRisk}%`, icon: Mail, color: "cyber-light-blue" },
+    { label: "Password Risk", value: `${passwordRisk}%`, icon: Key, color: "cyber-yellow" },
+    { label: "Data Leaks", value: String(totalExposure > 0 ? totalExposure : mockAccounts.length), icon: Database, color: "cyber-teal" },
+  ];
 
   const handleLookup = async () => {
   if (!lookupEmail.trim()) return;
@@ -325,7 +363,7 @@ const BreachCheck: React.FC = () => {
 
               {/* Stat cards row */}
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                {statCards.map((s) => {
+                {dynamicStatCards.map((s) => {
                   const Icon = s.icon;
                   return (
                     <motion.div key={s.label} variants={item}>
@@ -359,10 +397,10 @@ const BreachCheck: React.FC = () => {
                     <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Data Exposure</h3>
                     <div className="flex items-center gap-5">
                       <div className="relative flex-shrink-0">
-                        <DonutChart data={exposureData} colors={pieColors} size={140} total={totalExposure} />
+                        <DonutChart data={dynamicExposureData} colors={pieColors} size={140} total={totalExposure} />
                       </div>
                       <div className="min-w-0 flex-1 space-y-3">
-                        {exposureData.map((d, i) => (
+                        {dynamicExposureData.map((d, i) => (
                           <div key={d.name} className="flex items-center gap-2.5">
                             <div className="h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: pieColors[i] }} />
                             <span className="text-xs font-medium text-foreground">{d.name}</span>
