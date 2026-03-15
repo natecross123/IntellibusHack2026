@@ -60,46 +60,13 @@ interface MonitoredAccountsContextType {
 
 const MonitoredAccountsContext = createContext<MonitoredAccountsContextType | undefined>(undefined);
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 const parseDate = (isoDate: string): string => {
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) return isoDate;
   return d.toISOString().split("T")[0];
-};
-
-const scoreFromSeed = (seed: string): number => {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
-  }
-  const normalized = Math.abs(hash) % 55;
-  return 40 + normalized;
-};
-
-const fallbackLookup = (email: string): LookupResult => {
-  const seed = email.trim().toLowerCase();
-  const score = scoreFromSeed(seed);
-  const breaches = Math.max(1, Math.round((100 - score) / 22));
-
-  const exposurePool = ["Email", "Password", "Phone", "Username", "IP Address", "Name"];
-  const exposedData = exposurePool.slice(0, Math.min(exposurePool.length, breaches + 1));
-
-  const recentBreaches = Array.from({ length: breaches }).map((_, idx) => {
-    const year = 2025 - idx;
-    return {
-      source: `BreachSource-${idx + 1}`,
-      date: `${year}-01-15`,
-      records: "Unknown",
-    };
-  });
-
-  return {
-    score,
-    breaches,
-    exposedData,
-    recentBreaches,
-  };
 };
 
 const toLookupResult = (data: BreachApiResponse): LookupResult => {
@@ -137,22 +104,18 @@ const toMonitoredAccount = (data: MonitoredAccountApiResponse): MonitoredAccount
 });
 
 const fetchLookup = async (email: string): Promise<LookupResult> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/breach/check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
+  const response = await fetch(apiUrl("/api/breach/check"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Lookup request failed with status ${response.status}`);
-    }
-
-    const payload = (await response.json()) as BreachApiResponse;
-    return toLookupResult(payload);
-  } catch {
-    return fallbackLookup(email);
+  if (!response.ok) {
+    throw new Error(`Lookup request failed with status ${response.status}`);
   }
+
+  const payload = (await response.json()) as BreachApiResponse;
+  return toLookupResult(payload);
 };
 
 export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -176,7 +139,7 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user/monitored-accounts`, {
+      const response = await fetch(apiUrl("/api/user/monitored-accounts"), {
         method: "GET",
         headers: authHeaders,
       });
@@ -218,7 +181,7 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user/monitored-accounts`, {
+      const response = await fetch(apiUrl("/api/user/monitored-accounts"), {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({ email: normalizedEmail }),
@@ -244,7 +207,7 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
 
     if (!authHeaders) return;
 
-    void fetch(`${API_BASE_URL}/api/user/monitored-accounts/${encodeURIComponent(normalizedEmail)}`, {
+    void fetch(apiUrl(`/api/user/monitored-accounts/${encodeURIComponent(normalizedEmail)}`), {
       method: "DELETE",
       headers: authHeaders,
     });

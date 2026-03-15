@@ -11,23 +11,6 @@ import { Input } from "@/components/ui/input";
 import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
 import { useToast } from "@/hooks/use-toast";
 
-const overallGrade = "A-";
-const overallScore = 80;
-
-const recentNotifications = [
-  { id: 1, type: "danger", message: "Password found in a recent data breach.", time: "2h ago" },
-  { id: 2, type: "warning", message: "Suspicious login on Instagram.", time: "5h ago" },
-  { id: 3, type: "info", message: "Monthly report ready. +4 pts.", time: "1d ago" },
-];
-
-const breachSourceData = [
-  { name: "Social Media", value: 35 },
-  { name: "Email", value: 25 },
-  { name: "Shopping", value: 20 },
-  { name: "Finance", value: 10 },
-  { name: "Other", value: 10 },
-];
-
 const pieColors = [
   "hsl(var(--cyber-light-blue))",
   "hsl(var(--cyber-blue))",
@@ -54,11 +37,71 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+const gradeFromScore = (score: number): string => {
+  if (score >= 97) return "A+";
+  if (score >= 93) return "A";
+  if (score >= 90) return "A-";
+  if (score >= 87) return "B+";
+  if (score >= 83) return "B";
+  if (score >= 80) return "B-";
+  if (score >= 77) return "C+";
+  if (score >= 73) return "C";
+  if (score >= 70) return "C-";
+  return "D";
+};
+
+const timeAgo = (iso: string): string => {
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return "recent";
+  const diffMinutes = Math.max(1, Math.floor((Date.now() - ts) / 60000));
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+  return `${Math.floor(diffMinutes / 1440)}d ago`;
+};
+
+const sourceCategory = (source: string): string => {
+  const s = source.toLowerCase();
+  if (s.includes("mail") || s.includes("email")) return "Email";
+  if (s.includes("bank") || s.includes("finance") || s.includes("wallet")) return "Finance";
+  if (s.includes("shop") || s.includes("store") || s.includes("commerce")) return "Shopping";
+  if (s.includes("social") || s.includes("discord") || s.includes("instagram") || s.includes("facebook")) return "Social Media";
+  return "Other";
+};
+
 const MobileDashboard: React.FC = () => {
   const { accounts, addMonitoredAccount } = useMonitoredAccounts();
   const { toast } = useToast();
   const [newAccount, setNewAccount] = useState("");
   const hasAccounts = accounts.length > 0;
+  const overallScore = hasAccounts
+    ? Math.round(accounts.reduce((sum, account) => sum + account.score, 0) / accounts.length)
+    : 0;
+  const overallGrade = gradeFromScore(overallScore);
+  const totalBreaches = accounts.reduce((sum, account) => sum + account.breaches, 0);
+
+  const recentNotifications = hasAccounts
+    ? accounts
+      .filter((account) => account.breaches > 0)
+      .slice(0, 3)
+      .map((account, index) => ({
+        id: index + 1,
+        type: account.score < 40 ? "danger" : account.score < 70 ? "warning" : "info",
+        message: `${account.email} appears in ${account.breaches} breach${account.breaches === 1 ? "" : "es"}.`,
+        time: timeAgo(account.lastCheckedAt),
+      }))
+    : [];
+
+  const sourceBuckets = accounts.flatMap((account) => account.recentBreaches).reduce<Record<string, number>>((acc, breach) => {
+    const category = sourceCategory(breach.source);
+    acc[category] = (acc[category] ?? 0) + 1;
+    return acc;
+  }, { "Social Media": 0, Email: 0, Shopping: 0, Finance: 0, Other: 0 });
+
+  const sourceTotal = Object.values(sourceBuckets).reduce((sum, value) => sum + value, 0);
+  const breachSourceData = Object.entries(sourceBuckets).map(([name, count]) => ({
+    name,
+    value: sourceTotal > 0 ? Math.round((count / sourceTotal) * 100) : 0,
+  }));
 
   const handleAddAccount = async () => {
     const trimmed = newAccount.trim();
@@ -87,7 +130,7 @@ const MobileDashboard: React.FC = () => {
       <motion.div variants={item} className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="font-display text-xl font-bold text-foreground">Hi, John 👋</h1>
+          <h1 className="font-display text-xl font-bold text-foreground">CyberShield Dashboard</h1>
         </div>
         <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full">
           <Bell className="h-5 w-5 text-muted-foreground" />
@@ -157,11 +200,11 @@ const MobileDashboard: React.FC = () => {
                       <p className="text-[10px] text-white/50">Accounts</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold text-white">5</p>
+                      <p className="text-lg font-bold text-white">{totalBreaches}</p>
                       <p className="text-[10px] text-white/50">Breaches</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold text-white">3</p>
+                      <p className="text-lg font-bold text-white">{recentNotifications.length}</p>
                       <p className="text-[10px] text-white/50">Alerts</p>
                     </div>
                   </div>
@@ -214,6 +257,9 @@ const MobileDashboard: React.FC = () => {
         <motion.div variants={item}>
           <h2 className="mb-3 font-display text-sm font-semibold text-foreground">Recent Alerts</h2>
           <div className="glass-card space-y-0 divide-y divide-border/50 overflow-hidden rounded-2xl">
+            {recentNotifications.length === 0 && (
+              <div className="p-3.5 text-sm text-muted-foreground">No recent breach alerts for monitored accounts.</div>
+            )}
             {recentNotifications.map((n) => (
               <div key={n.id} className="flex items-start gap-2.5 p-3.5">
                 {n.type === "danger" ? (

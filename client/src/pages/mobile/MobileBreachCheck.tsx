@@ -7,19 +7,7 @@ import RiskGauge from "@/components/RiskGauge";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
 import { useToast } from "@/hooks/use-toast";
-
-const exposureData = [
-  { name: "Email", value: 6 }, { name: "Password", value: 4 }, { name: "Phone", value: 2 },
-  { name: "IP", value: 3 }, { name: "Username", value: 5 },
-];
 const pieColors = ["hsl(var(--cyber-light-blue))", "hsl(var(--cyber-red))", "hsl(var(--cyber-blue))", "hsl(var(--cyber-yellow))", "hsl(var(--cyber-teal))"];
-
-const statCards = [
-  { label: "Threats", value: "7", icon: Shield, color: "cyber-red" },
-  { label: "Email Risk", value: "64%", icon: Mail, color: "cyber-light-blue" },
-  { label: "Passwords", value: "42%", icon: Key, color: "cyber-yellow" },
-  { label: "Leaks", value: "5", icon: Database, color: "cyber-teal" },
-];
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -43,7 +31,27 @@ const MobileBreachCheck: React.FC = () => {
   const avgScore = hasAccounts
     ? Math.round(accounts.reduce((sum, a) => sum + a.score, 0) / accounts.length)
     : 0;
+  const exposureBuckets = accounts.flatMap((account) => account.exposedData).reduce<Record<string, number>>((acc, label) => {
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const exposureData = Object.entries(exposureBuckets).map(([name, value]) => ({ name, value }));
   const totalExposure = exposureData.reduce((s, d) => s + d.value, 0);
+
+  const emailRisk = hasAccounts
+    ? Math.round((accounts.filter((a) => a.exposedData.some((d) => d.toLowerCase().includes("email"))).length / accounts.length) * 100)
+    : 0;
+  const passwordRisk = hasAccounts
+    ? Math.round((accounts.filter((a) => a.exposedData.some((d) => d.toLowerCase().includes("password"))).length / accounts.length) * 100)
+    : 0;
+
+  const statCards = [
+    { label: "Threats", value: String(totalBreaches), icon: Shield, color: "cyber-red" },
+    { label: "Email Risk", value: `${emailRisk}%`, icon: Mail, color: "cyber-light-blue" },
+    { label: "Passwords", value: `${passwordRisk}%`, icon: Key, color: "cyber-yellow" },
+    { label: "Leaks", value: String(totalExposure), icon: Database, color: "cyber-teal" },
+  ];
 
   const handleLookup = async () => {
     if (!lookupEmail.trim()) return;

@@ -22,7 +22,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CURRENT_USER_STORAGE_KEY = "cybershield_current_user";
 const ACCESS_TOKEN_STORAGE_KEY = "cybershield_access_token";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 const readCurrentProfile = (): UserProfile | null => {
   const raw = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
@@ -44,7 +45,7 @@ interface LoginResponse {
 }
 
 const loginWithApi = async (email: string, password: string): Promise<LoginResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+  const response = await fetch(apiUrl("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
@@ -90,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (password.length < 6) return { error: "Password must be at least 6 characters" };
 
     try {
-      const registerResponse = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const registerResponse = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),

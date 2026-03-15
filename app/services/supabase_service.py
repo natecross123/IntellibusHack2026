@@ -1,22 +1,16 @@
 from supabase import create_client, Client
 from datetime import datetime, timezone
 from app.config import settings
-from typing import Optional
-
-# Don't create client at module level!
-_supabase_client: Optional[Client] = None
 
 def get_supabase() -> Client:
-    """Lazy-load Supabase client"""
-    global _supabase_client
-    if _supabase_client is None:
-        if not settings.supabase_url or not settings.supabase_key:
-            raise ValueError("Supabase credentials not configured")
-        _supabase_client = create_client(
-            settings.supabase_url, 
-            settings.supabase_key
-        )
-    return _supabase_client
+    """Create a fresh Supabase client for each request path.
+
+    The Supabase auth client is stateful; reusing a singleton can leak session
+    state across requests/users after sign-in operations.
+    """
+    if not settings.supabase_url or not settings.supabase_key:
+        raise ValueError("Supabase credentials not configured")
+    return create_client(settings.supabase_url, settings.supabase_key)
 
 # ─── Breach History ───────────────────────────────────────────────────────────
 

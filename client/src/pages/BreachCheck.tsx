@@ -10,33 +10,22 @@ import MobileBreachCheck from "@/pages/mobile/MobileBreachCheck";
 import { useMonitoredAccounts } from "@/contexts/MonitoredAccountsContext";
 import { useToast } from "@/hooks/use-toast";
 
-const exposureData = [
-  { name: "Email", value: 6, icon: Mail },
-  { name: "Password", value: 4, icon: Lock },
-  { name: "Phone", value: 2, icon: Phone },
-  { name: "IP Address", value: 3, icon: Globe },
-  { name: "Username", value: 5, icon: Eye },
-];
-
 const pieColors = [
   "hsl(var(--cyber-light-blue))", "hsl(var(--cyber-red))", "hsl(var(--cyber-blue))",
   "hsl(var(--cyber-yellow))", "hsl(var(--cyber-teal))",
 ];
 
-const barData = [
-  { name: "2022", count: 1 }, { name: "2023", count: 2 },
-  { name: "2024", count: 1 }, { name: "2025", count: 3 },
-];
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
-const statCards = [
-  { label: "Total Threats", value: "7", icon: Shield, color: "cyber-red" },
-  { label: "Email Risk", value: "64%", icon: Mail, color: "cyber-light-blue" },
-  { label: "Password Risk", value: "42%", icon: Key, color: "cyber-yellow" },
-  { label: "Data Leaks", value: "5", icon: Database, color: "cyber-teal" },
-];
+const exposureMeta: Record<string, { icon: React.ComponentType<{ className?: string }> }> = {
+  Email: { icon: Mail },
+  Password: { icon: Lock },
+  Phone: { icon: Phone },
+  "IP Address": { icon: Globe },
+  Username: { icon: Eye },
+};
 
 interface LookupResult {
   score: number;
@@ -118,7 +107,45 @@ const BreachCheck: React.FC = () => {
   const avgScore = hasAccounts
     ? Math.round(accounts.reduce((sum, a) => sum + a.score, 0) / accounts.length)
     : 0;
+  const exposureBuckets = accounts.flatMap((account) => account.exposedData).reduce<Record<string, number>>((acc, label) => {
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const exposureData = Object.entries(exposureBuckets).map(([name, value]) => ({
+    name,
+    value,
+    icon: exposureMeta[name]?.icon ?? Database,
+  }));
+
   const totalExposure = exposureData.reduce((s, d) => s + d.value, 0);
+
+  const timelineBuckets = accounts
+    .flatMap((account) => account.recentBreaches)
+    .reduce<Record<string, number>>((acc, breach) => {
+      const year = new Date(breach.date).getFullYear();
+      const key = Number.isNaN(year) ? "Unknown" : String(year);
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+
+  const barData = Object.entries(timelineBuckets)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const emailRisk = hasAccounts
+    ? Math.round((accounts.filter((a) => a.exposedData.some((d) => d.toLowerCase().includes("email"))).length / accounts.length) * 100)
+    : 0;
+  const passwordRisk = hasAccounts
+    ? Math.round((accounts.filter((a) => a.exposedData.some((d) => d.toLowerCase().includes("password"))).length / accounts.length) * 100)
+    : 0;
+
+  const statCards = [
+    { label: "Total Threats", value: String(totalBreaches), icon: Shield, color: "cyber-red" },
+    { label: "Email Risk", value: `${emailRisk}%`, icon: Mail, color: "cyber-light-blue" },
+    { label: "Password Risk", value: `${passwordRisk}%`, icon: Key, color: "cyber-yellow" },
+    { label: "Data Leaks", value: String(totalExposure), icon: Database, color: "cyber-teal" },
+  ];
 
   const handleLookup = async () => {
     if (!lookupEmail.trim()) return;
