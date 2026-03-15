@@ -26,17 +26,21 @@ interface LookupResult {
   recentBreaches: BreachRow[];
 }
 
-interface BreachApiItem {
-  name?: string;
-  breach_date?: string;
-  data_classes?: string[];
-}
-
+// Shape returned by /api/breach/check (FastAPI BreachResponse schema)
 interface BreachApiResponse {
+  email?: string;
   breach_count?: number;
-  breaches?: BreachApiItem[];
+  breaches?: Array<{
+    name?: string;
+    domain?: string;
+    breach_date?: string;
+    description?: string;
+    data_classes?: string[];
+  }>;
   risk_score?: number;
   risk_label?: string;
+  recovery_plan?: unknown[];
+  summary?: string;
 }
 
 interface MonitoredAccountApiResponse {
@@ -61,6 +65,7 @@ interface MonitoredAccountsContextType {
 const MonitoredAccountsContext = createContext<MonitoredAccountsContextType | undefined>(undefined);
 
 const parseDate = (isoDate: string): string => {
+  if (!isoDate || isoDate === "Unknown") return "Unknown";
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) return isoDate;
   return d.toISOString().split("T")[0];
@@ -71,11 +76,11 @@ const toLookupResult = (data: BreachApiResponse): LookupResult => {
 
   const exposedData: string[] = Array.from(
     new Set(
-      breaches.flatMap((b: BreachApiItem) => (Array.isArray(b?.data_classes) ? b.data_classes : [])),
+      breaches.flatMap((b) => (Array.isArray(b?.data_classes) ? b.data_classes : [])),
     ),
   );
 
-  const recentBreaches = breaches.slice(0, 3).map((b: BreachApiItem) => ({
+  const recentBreaches: BreachRow[] = breaches.slice(0, 3).map((b) => ({
     source: b?.name ?? "Unknown source",
     date: parseDate(b?.breach_date ?? "Unknown"),
     records: "Unknown",
@@ -100,23 +105,29 @@ const toMonitoredAccount = (data: MonitoredAccountApiResponse): MonitoredAccount
   lastCheckedAt: data.last_checked_at,
 });
 
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 const fetchLookup = async (email: string): Promise<LookupResult> => {
   const response = await fetch(apiUrl("/api/breach/check"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify({ email }),
   });
 
   if (!response.ok) {
-    throw new Error(`Lookup request failed with status ${response.status}`);
+    const text = await response.text().catch(() => "");
+    throw new Error(`Breach lookup failed (${response.status})${text ? `: ${text}` : ""}`);
   }
 
-  const payload = (await response.json()) as BreachApiResponse;
+  let payload: BreachApiResponse;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("Invalid response from breach service");
+  }
+
   return toLookupResult(payload);
 };
-
-// Use JSON headers only — no auth token needed since auth is disabled
-const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [accounts, setAccounts] = useState<MonitoredAccount[]>([]);
@@ -130,7 +141,6 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
       });
 
       if (!response.ok) {
-        // Non-fatal — just show empty list
         setAccounts([]);
         return;
       }
@@ -149,12 +159,13 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
     void refreshAccounts();
   }, [refreshAccounts]);
 
-  const lookupAccount = useCallback(async (email: string) => {
+  const lookupAccount = useCallback(async (email: string): Promise<LookupResult> => {
     return fetchLookup(email.trim().toLowerCase());
   }, []);
 
   const addMonitoredAccount = useCallback(async (email: string) => {
     const normalizedEmail = email.trim().toLowerCase();
+
     if (!normalizedEmail) {
       return { ok: false, error: "Please provide an email to monitor." };
     }
@@ -171,16 +182,20 @@ export const MonitoredAccountsProvider: React.FC<{ children: React.ReactNode }> 
       });
 
       if (!response.ok) {
-        const payload = await response.json();
-        return { ok: false, error: payload?.detail ?? "Unable to monitor account." };
+        let errorMsg = "Unable to monitor account.";
+        try {
+          const payload = await response.json();
+          errorMsg = payload?.detail ?? errorMsg;
+        } catch { /* ignore */ }
+        return { ok: false, error: errorMsg };
       }
 
       const payload = (await response.json()) as MonitoredAccountApiResponse;
       const monitoredAccount = toMonitoredAccount(payload);
       setAccounts((prev) => [monitoredAccount, ...prev.filter((a) => a.email !== monitoredAccount.email)]);
       return { ok: true, account: monitoredAccount };
-    } catch {
-      return { ok: false, error: "Unable to monitor account." };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Unable to monitor account." };
     }
   }, [accounts]);
 
