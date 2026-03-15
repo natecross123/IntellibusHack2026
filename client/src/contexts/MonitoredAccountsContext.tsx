@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiUrl } from "@/lib/apiBase";
 
 interface BreachRow {
   source: string;
@@ -59,9 +60,6 @@ interface MonitoredAccountsContextType {
 }
 
 const MonitoredAccountsContext = createContext<MonitoredAccountsContextType | undefined>(undefined);
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 const parseDate = (isoDate: string): string => {
   const d = new Date(isoDate);

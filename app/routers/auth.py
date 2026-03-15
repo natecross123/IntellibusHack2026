@@ -11,6 +11,16 @@ from app.middleware.auth import get_current_user
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _validate_password(password: str) -> None:
+    # Supabase stores password hashes securely; we enforce basic quality at API edge.
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
 #------------------------------------------------
 class AuthRequest(BaseModel):
     email: EmailStr
@@ -24,9 +34,12 @@ class VerifyRequest(BaseModel):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(request: AuthRequest):
     try:
+        email = _normalize_email(str(request.email))
+        _validate_password(request.password)
+
         supabase = get_supabase()  # Get client inside function
         res = supabase.auth.sign_up({
-            "email": request.email,
+            "email": email,
             "password": request.password
         })
         if res.user is None:
@@ -45,13 +58,13 @@ async def register(request: AuthRequest):
         }).execute()
 
         result = send_verification_email(
-            to_email=request.email,
-            to_name=request.email.split("@")[0],
+            to_email=email,
+            to_name=email.split("@")[0],
             code=code
         )
 
         if not result["success"]:
-            logger.warning(f"[Register] Email failed for {request.email}, code logged to console.")
+            logger.warning(f"[Register] Email failed for {email}, code logged to console.")
 
         return {"message": "Registration successful. Check your email to confirm."}
     except HTTPException:
@@ -65,9 +78,12 @@ async def register(request: AuthRequest):
 @router.post("/login")
 async def login(request: AuthRequest):
     try:
+        email = _normalize_email(str(request.email))
+        _validate_password(request.password)
+
         supabase = get_supabase()  # Get client inside function
         res = supabase.auth.sign_in_with_password({
-            "email": request.email,
+            "email": email,
             "password": request.password
         })
         if res.user is None:

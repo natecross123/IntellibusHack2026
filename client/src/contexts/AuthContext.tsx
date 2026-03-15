@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from "react";
+import { apiUrl } from "@/lib/apiBase";
 
 interface UserProfile {
   id: string;
@@ -22,8 +23,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CURRENT_USER_STORAGE_KEY = "cybershield_current_user";
 const ACCESS_TOKEN_STORAGE_KEY = "cybershield_access_token";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 const readCurrentProfile = (): UserProfile | null => {
   const raw = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
