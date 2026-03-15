@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { apiUrl } from "@/lib/apiBase";
 
 interface UserProfile {
@@ -41,7 +41,59 @@ interface LoginResponse {
   access_token: string;
   user_id: string;
   email: string;
+  full_name?: string;
 }
+
+interface MeResponse {
+  user_id: string;
+  email: string;
+  full_name?: string;
+}
+
+const parseJsonSafe = async (response: Response): Promise<Record<string, unknown>> => {
+  const raw = await response.text();
+  if (!raw) return {};
+
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return { detail: raw };
+  }
+};
+
+const toLoginResponse = (payload: Record<string, unknown>): LoginResponse => {
+  const accessToken = payload.access_token;
+  const userId = payload.user_id;
+  const email = payload.email;
+  const fullName = payload.full_name;
+
+  if (typeof accessToken !== "string" || typeof userId !== "string" || typeof email !== "string") {
+    throw new Error("Invalid login response payload from auth service");
+  }
+
+  return {
+    access_token: accessToken,
+    user_id: userId,
+    email,
+    full_name: typeof fullName === "string" ? fullName : undefined,
+  };
+};
+
+const toMeResponse = (payload: Record<string, unknown>): MeResponse => {
+  const userId = payload.user_id;
+  const email = payload.email;
+  const fullName = payload.full_name;
+
+  if (typeof userId !== "string" || typeof email !== "string") {
+    throw new Error("Invalid session response payload from auth service");
+  }
+
+  return {
+    user_id: userId,
+    email,
+    full_name: typeof fullName === "string" ? fullName : undefined,
+  };
+};
 
 const loginWithApi = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch(apiUrl("/api/auth/login"), {
@@ -50,29 +102,76 @@ const loginWithApi = async (email: string, password: string): Promise<LoginRespo
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
   });
 
-  const payload = await response.json();
+  const payload = await parseJsonSafe(response);
   if (!response.ok) {
-    throw new Error(payload?.detail ?? "Invalid email or password");
+    throw new Error((payload?.detail as string) ?? `Login failed (${response.status})`);
   }
 
-  return payload as LoginResponse;
+  return toLoginResponse(payload);
+};
+
+const getCurrentUser = async (token: string): Promise<MeResponse> => {
+  const response = await fetch(apiUrl("/api/auth/me"), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const payload = await parseJsonSafe(response);
+  if (!response.ok) {
+    throw new Error((payload?.detail as string) ?? "Session expired");
+  }
+
+  return toMeResponse(payload);
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(readCurrentProfile);
   const [accessToken, setAccessToken] = useState<string | null>(readAccessToken);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      if (!accessToken) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const me = await getCurrentUser(accessToken);
+        const profile: UserProfile = {
+          id: me.user_id,
+          email: me.email,
+          fullName: me.full_name?.trim() || me.email.split("@")[0],
+        };
+
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(profile));
+        setUser(profile);
+      } catch {
+        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+        localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+        setUser(null);
+        setAccessToken(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void bootstrapAuth();
+  }, [accessToken]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     if (!email || !password) return { error: "Email and password are required" };
-    if (password.length < 6) return { error: "Password must be at least 6 characters" };
+    if (password.length < 8) return { error: "Password must be at least 8 characters" };
 
     try {
       const payload = await loginWithApi(email, password);
       const profile: UserProfile = {
         id: payload.user_id,
         email: payload.email,
-        fullName: payload.email.split("@")[0],
+        fullName: payload.full_name?.trim() || payload.email.split("@")[0],
       };
 
       localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(profile));
@@ -87,25 +186,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
     if (!email || !password || !fullName) return { error: "All fields are required" };
-    if (password.length < 6) return { error: "Password must be at least 6 characters" };
+    if (password.length < 8) return { error: "Password must be at least 8 characters" };
 
     try {
       const registerResponse = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, full_name: fullName.trim() }),
       });
 
-      const registerPayload = await registerResponse.json();
+      const registerPayload = await parseJsonSafe(registerResponse);
       if (!registerResponse.ok) {
-        return { error: registerPayload?.detail ?? "Unable to create account" };
+        return { error: (registerPayload?.detail as string) ?? `Unable to create account (${registerResponse.status})` };
       }
 
       const payload = await loginWithApi(email, password);
       const profile: UserProfile = {
         id: payload.user_id,
         email: payload.email,
-        fullName: fullName.trim() || payload.email.split("@")[0],
+        fullName: payload.full_name?.trim() || fullName.trim() || payload.email.split("@")[0],
       };
 
       localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(profile));
@@ -119,6 +218,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(() => {
+    const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+    if (token) {
+      void fetch(apiUrl("/api/auth/logout"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => undefined);
+    }
+
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
     localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
     setUser(null);

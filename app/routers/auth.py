@@ -2,6 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, status
 from starlette.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 from app.services.email_service import generate_verification_code, code_expiry, send_verification_email
 from app.services.supabase_service import get_supabase  # Import the function
 import logging
@@ -25,6 +26,7 @@ def _validate_password(password: str) -> None:
 class AuthRequest(BaseModel):
     email: EmailStr
     password: str
+    full_name: Optional[str] = None
 
 class VerifyRequest(BaseModel):
     code: str
@@ -36,12 +38,17 @@ async def register(request: AuthRequest):
     try:
         email = _normalize_email(str(request.email))
         _validate_password(request.password)
+        full_name = (request.full_name or "").strip()
 
         supabase = get_supabase()  # Get client inside function
-        res = supabase.auth.sign_up({
+        sign_up_payload = {
             "email": email,
             "password": request.password
-        })
+        }
+        if full_name:
+            sign_up_payload["options"] = {"data": {"full_name": full_name}}
+
+        res = supabase.auth.sign_up(sign_up_payload)
         if res.user is None:
             raise HTTPException(
                 status_code=400, 
@@ -97,6 +104,7 @@ async def login(request: AuthRequest):
             "token_type": "bearer",
             "user_id": str(res.user.id),
             "email": res.user.email,
+            "full_name": (res.user.user_metadata or {}).get("full_name"),
         }
     except HTTPException:
         raise
@@ -156,6 +164,7 @@ async def get_me(credentials=Depends(__import__('app.middleware.auth',
     return {
         "user_id": str(credentials.id),
         "email": credentials.email,
+        "full_name": (credentials.user_metadata or {}).get("full_name"),
     }
 
 @router.get("/login/google")
